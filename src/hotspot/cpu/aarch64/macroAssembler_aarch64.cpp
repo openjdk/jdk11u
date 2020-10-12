@@ -2530,9 +2530,17 @@ void MacroAssembler::debug64(char* msg, int64_t pc, int64_t regs[])
   }
 }
 
+RegSet MacroAssembler::call_clobbered_registers() {
+  RegSet regs = RegSet::range(r0, r17) - RegSet::of(rscratch1, rscratch2);
+#ifndef R18_RESERVED
+  regs += r18_reserved;
+#endif
+  return regs;
+}
+
 void MacroAssembler::push_call_clobbered_registers() {
   int step = 4 * wordSize;
-  push(RegSet::range(r0, r18) - RegSet::of(rscratch1, rscratch2), sp);
+  push(call_clobbered_registers() - RegSet::of(rscratch1, rscratch2), sp);
   sub(sp, sp, step);
   mov(rscratch1, -step);
   // Push v0-v7, v16-v31.
@@ -2552,7 +2560,7 @@ void MacroAssembler::pop_call_clobbered_registers() {
           as_FloatRegister(i+3), T1D, Address(post(sp, 4 * wordSize)));
   }
 
-  pop(RegSet::range(r0, r18) - RegSet::of(rscratch1, rscratch2), sp);
+  pop(call_clobbered_registers() - RegSet::of(rscratch1, rscratch2), sp);
 }
 
 void MacroAssembler::push_CPU_state(bool save_vectors) {
@@ -4783,7 +4791,7 @@ void MacroAssembler::string_compare(Register str1, Register str2,
     Register cnt1, Register cnt2, Register result, Register tmp1, Register tmp2,
     FloatRegister vtmp1, FloatRegister vtmp2, FloatRegister vtmp3, int ae) {
   Label DONE, SHORT_LOOP, SHORT_STRING, SHORT_LAST, TAIL, STUB,
-      DIFFERENCE, NEXT_WORD, SHORT_LOOP_TAIL, SHORT_LAST2, SHORT_LAST_INIT,
+      DIFF, NEXT_WORD, SHORT_LOOP_TAIL, SHORT_LAST2, SHORT_LAST_INIT,
       SHORT_LOOP_START, TAIL_CHECK;
 
   const int STUB_THRESHOLD = 64 + 8;
@@ -4870,7 +4878,7 @@ void MacroAssembler::string_compare(Register str1, Register str2,
     adds(cnt2, cnt2, isUL ? 4 : 8);
     br(GE, TAIL);
     eor(rscratch2, tmp1, tmp2);
-    cbnz(rscratch2, DIFFERENCE);
+    cbnz(rscratch2, DIFF);
     // main loop
     bind(NEXT_WORD);
     if (str1_isL == str2_isL) {
@@ -4896,10 +4904,10 @@ void MacroAssembler::string_compare(Register str1, Register str2,
 
     eor(rscratch2, tmp1, tmp2);
     cbz(rscratch2, NEXT_WORD);
-    b(DIFFERENCE);
+    b(DIFF);
     bind(TAIL);
     eor(rscratch2, tmp1, tmp2);
-    cbnz(rscratch2, DIFFERENCE);
+    cbnz(rscratch2, DIFF);
     // Last longword.  In the case where length == 4 we compare the
     // same longword twice, but that's still faster than another
     // conditional branch.
@@ -4923,7 +4931,7 @@ void MacroAssembler::string_compare(Register str1, Register str2,
 
     // Find the first different characters in the longwords and
     // compute their difference.
-    bind(DIFFERENCE);
+    bind(DIFF);
     rev(rscratch2, rscratch2);
     clz(rscratch2, rscratch2);
     andr(rscratch2, rscratch2, isLL ? -8 : -16);

@@ -28,6 +28,19 @@
 
 #include "asm/register.hpp"
 
+#ifdef __GNUC__
+
+// __nop needs volatile so that compiler doesn't optimize it away
+#define NOP() asm volatile ("nop");
+
+#elif defined(_MSC_VER)
+
+// Use MSVC instrinsic: https://docs.microsoft.com/en-us/cpp/intrinsics/arm64-intrinsics?view=vs-2019#I
+#define NOP() __nop();
+
+#endif
+
+
 // definitions of various symbolic names for machine registers
 
 // First intercalls between C and Java which use 8 general registers
@@ -608,7 +621,7 @@ class Assembler : public AbstractAssembler {
 
   void emit_long(jint x) {
     if ((uintptr_t)pc() == asm_bp)
-      asm volatile ("nop");
+      NOP();
     AbstractAssembler::emit_int32(x);
   }
 #else
@@ -639,6 +652,8 @@ public:
   Address post(Register base, Register idx) {
     return Address(Post(base, idx));
   }
+
+  static address locate_next_instruction(address inst);
 
   Instruction_aarch64* current;
 
@@ -1504,6 +1519,11 @@ public:
   INSN(bicsw, 0, 0b11, 1);
 
 #undef INSN
+
+#ifdef _WIN64
+// In MSVC, `mvn` is defined as a macro and it affects compilation
+#undef mvn
+#endif
 
   // Aliases for short forms of orn
 void mvn(Register Rd, Register Rm,
