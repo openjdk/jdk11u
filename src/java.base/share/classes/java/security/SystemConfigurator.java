@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2020, Red Hat, Inc.
+ * Copyright (c) 2019, 2021, Red Hat, Inc.
  *
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
@@ -30,13 +30,9 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.regex.Pattern;
 
 import sun.security.util.Debug;
 
@@ -58,10 +54,21 @@ final class SystemConfigurator {
     private static final String CRYPTO_POLICIES_JAVA_CONFIG =
             CRYPTO_POLICIES_BASE_DIR + "/back-ends/java.config";
 
-    private static final String CRYPTO_POLICIES_CONFIG =
-            CRYPTO_POLICIES_BASE_DIR + "/config";
-
     private static boolean systemFipsEnabled = false;
+
+    private static final String SYSTEMCONF_NATIVE_LIB = "systemconf";
+
+    private static native boolean getSystemFIPSEnabled()
+            throws IOException;
+
+    static {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            public Void run() {
+                System.loadLibrary(SYSTEMCONF_NATIVE_LIB);
+                return null;
+            }
+        });
+    }
 
     /*
      * Invoked when java.security.Security class is initialized, if
@@ -170,16 +177,34 @@ final class SystemConfigurator {
     }
 
     /*
-     * FIPS is enabled only if crypto-policies are set to "FIPS"
-     * and the com.redhat.fips property is true.
+     * OpenJDK FIPS mode will be enabled only if the com.redhat.fips
+     * system property is true (default) and the system is in FIPS mode.
+     *
+     * There are 2 possible ways in which OpenJDK detects that the system
+     * is in FIPS mode: 1) if the NSS SECMOD_GetSystemFIPSEnabled API is
+     * available at OpenJDK's built-time, it is called; 2) otherwise, the
+     * /proc/sys/crypto/fips_enabled file is read.
      */
     private static boolean enableFips() throws Exception {
         boolean shouldEnable = Boolean.valueOf(System.getProperty("com.redhat.fips", "true"));
         if (shouldEnable) {
-            String cryptoPoliciesConfig = new String(Files.readAllBytes(Path.of(CRYPTO_POLICIES_CONFIG)));
-            if (sdebug != null) { sdebug.println("Crypto config:\n" + cryptoPoliciesConfig); }
-            Pattern pattern = Pattern.compile("^FIPS$", Pattern.MULTILINE);
-            return pattern.matcher(cryptoPoliciesConfig).find();
+            if (sdebug != null) {
+                sdebug.println("Calling getSystemFIPSEnabled (libsystemconf)...");
+            }
+            try {
+                shouldEnable = getSystemFIPSEnabled();
+                if (sdebug != null) {
+                    sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) returned: "
+                            + shouldEnable);
+                }
+                return shouldEnable;
+            } catch (IOException e) {
+                if (sdebug != null) {
+                    sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) failed:");
+                    sdebug.println(e.getMessage());
+                }
+                throw e;
+            }
         } else {
             return false;
         }

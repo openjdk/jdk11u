@@ -2950,6 +2950,9 @@
                   <in>LinuxWatchService.c</in>
                 </df>
               </df>
+              <df name="libsystemconf">
+                <in>systemconf.c</in>
+              </df>
             </df>
           </df>
           <df name="macosx">
@@ -29297,6 +29300,11 @@
             flavor2="0">
       </item>
       <item path="../../src/java.base/linux/native/libnio/fs/LinuxWatchService.c"
+            ex="false"
+            tool="0"
+            flavor2="0">
+      </item>
+      <item path="../../src/java.base/linux/native/libsystemconf/systemconf.c"
             ex="false"
             tool="0"
             flavor2="0">

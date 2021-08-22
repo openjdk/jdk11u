@@ -101,6 +101,7 @@ AC_DEFUN_ONCE([LIB_SETUP_LIBRARIES],
   LIB_SETUP_LIBFFI
   LIB_SETUP_BUNDLED_LIBS
   LIB_SETUP_MISC_LIBS
+  LIB_SETUP_SYSCONF_LIBS
   LIB_SETUP_SOLARIS_STLPORT
   LIB_TESTS_SETUP_GRAALUNIT
 
@@ -223,3 +224,62 @@ AC_DEFUN_ONCE([LIB_SETUP_SOLARIS_STLPORT],
   fi
 ])
 
+################################################################################
+# Setup system configuration libraries
+################################################################################
+AC_DEFUN_ONCE([LIB_SETUP_SYSCONF_LIBS],
+[
+  ###############################################################################
+  #
+  # Check for the NSS library
+  #
+
+  AC_MSG_CHECKING([whether to use the system NSS library with the System Configurator (libsysconf)])
+
+  # default is not available
+  DEFAULT_SYSCONF_NSS=no
+
+  AC_ARG_ENABLE([sysconf-nss], [AS_HELP_STRING([--enable-sysconf-nss],
+     [build the System Configurator (libsysconf) using the system NSS library if available @<:@disabled@:>@])],
+  [
+    case "${enableval}" in
+      yes)
+        sysconf_nss=yes
+        ;;
+      *)
+        sysconf_nss=no
+        ;;
+    esac
+  ],
+  [
+    sysconf_nss=${DEFAULT_SYSCONF_NSS}
+  ])
+  AC_MSG_RESULT([$sysconf_nss])
+
+  USE_SYSCONF_NSS=false
+  if test "x${sysconf_nss}" = "xyes"; then
+      PKG_CHECK_MODULES(NSS, nss >= 3.53, [NSS_FOUND=yes], [NSS_FOUND=no])
+      if test "x${NSS_FOUND}" = "xyes"; then
+         AC_MSG_CHECKING([for system FIPS support in NSS])
+         saved_libs="${LIBS}"
+         saved_cflags="${CFLAGS}"
+         CFLAGS="${CFLAGS} ${NSS_CFLAGS}"
+         LIBS="${LIBS} ${NSS_LIBS}"
+         AC_LANG_PUSH([C])
+         AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <nss3/pk11pub.h>]],
+                                         [[SECMOD_GetSystemFIPSEnabled()]])],
+                        [AC_MSG_RESULT([yes])],
+                        [AC_MSG_RESULT([no])
+                        AC_MSG_ERROR([System NSS FIPS detection unavailable])])
+         AC_LANG_POP([C])
+         CFLAGS="${saved_cflags}"
+         LIBS="${saved_libs}"
+         USE_SYSCONF_NSS=true
+      else
+         dnl NSS 3.53 is the one that introduces the SECMOD_GetSystemFIPSEnabled API
+         dnl in nss3/pk11pub.h.
+         AC_MSG_ERROR([--enable-sysconf-nss specified, but NSS 3.53 or above not found.])
+      fi
+  fi
+  AC_SUBST(USE_SYSCONF_NSS)
+])

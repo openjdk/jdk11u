@@ -179,6 +179,31 @@ ifeq ($(OPENJDK_TARGET_OS_TYPE), unix)
 endif
 
 ################################################################################
+# Create the systemconf library
+
+LIBSYSTEMCONF_CFLAGS :=
+LIBSYSTEMCONF_CXXFLAGS :=
+
+ifeq ($(USE_SYSCONF_NSS), true)
+  LIBSYSTEMCONF_CFLAGS += $(NSS_CFLAGS) -DSYSCONF_NSS
+  LIBSYSTEMCONF_CXXFLAGS += $(NSS_CFLAGS) -DSYSCONF_NSS
+endif
+
+ifeq ($(OPENJDK_BUILD_OS), linux)
+  $(eval $(call SetupJdkLibrary, BUILD_LIBSYSTEMCONF, \
+      NAME := systemconf, \
+      OPTIMIZATION := LOW, \
+      CFLAGS := $(CFLAGS_JDKLIB) $(LIBSYSTEMCONF_CFLAGS), \
+      CXXFLAGS := $(CXXFLAGS_JDKLIB) $(LIBSYSTEMCONF_CXXFLAGS), \
+      LDFLAGS := $(LDFLAGS_JDKLIB) \
+          $(call SET_SHARED_LIBRARY_ORIGIN), \
+      LIBS_unix := $(LIBDL) $(NSS_LIBS), \
+  ))
+
+  TARGETS += $(BUILD_LIBSYSTEMCONF)
+endif
+
+################################################################################
 # Create the symbols file for static builds.
 
 ifeq ($(STATIC_BUILD), true)
