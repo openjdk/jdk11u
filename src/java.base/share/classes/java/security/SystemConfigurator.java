@@ -122,6 +122,33 @@ class SystemConfigurator {
                     }
                     props.put(fipsProviderKey, fipsProviderValue);
                 }
+                // Add other security properties
+                String keystoreTypeValue = (String) props.get("fips.keystore.type");
+                if (keystoreTypeValue != null) {
+                    String nonFipsKeystoreType = props.getProperty("keystore.type");
+                    props.put("keystore.type", keystoreTypeValue);
+                    if (keystoreTypeValue.equals("PKCS11")) {
+                    	// If keystore.type is PKCS11, javax.net.ssl.keyStore
+                    	// must be "NONE". See JDK-8238264.
+                    	System.setProperty("javax.net.ssl.keyStore", "NONE");
+                    }
+                    if (System.getProperty("javax.net.ssl.trustStoreType") == null) {
+                        // If no trustStoreType has been set, use the
+                        // previous keystore.type under FIPS mode. In
+                        // a default configuration, the Trust Store will
+                        // be 'cacerts' (JKS type).
+                        System.setProperty("javax.net.ssl.trustStoreType",
+                                nonFipsKeystoreType);
+                    }
+                    if (sdebug != null) {
+                        sdebug.println("FIPS mode default keystore.type = " +
+                                keystoreTypeValue);
+                        sdebug.println("FIPS mode javax.net.ssl.keyStore = " +
+                        		System.getProperty("javax.net.ssl.keyStore", ""));
+                        sdebug.println("FIPS mode javax.net.ssl.trustStoreType = " +
+                                System.getProperty("javax.net.ssl.trustStoreType", ""));
+                    }
+                }
                 loadedProps = true;
             }
         } catch (Exception e) {
