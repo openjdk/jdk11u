@@ -76,6 +76,7 @@ public class SharedSecrets {
     private static JavaIORandomAccessFileAccess javaIORandomAccessFileAccess;
     private static JavaSecuritySignatureAccess javaSecuritySignatureAccess;
     private static JavaxCryptoSealedObjectAccess javaxCryptoSealedObjectAccess;
+    private static JavaSecuritySystemConfiguratorAccess javaSecuritySystemConfiguratorAccess;
 
     public static JavaUtilJarAccess javaUtilJarAccess() {
         if (javaUtilJarAccess == null) {
@@ -360,5 +361,13 @@ public class SharedSecrets {
             unsafe.ensureClassInitialized(SealedObject.class);
         }
         return javaxCryptoSealedObjectAccess;
+    }
+
+    public static void setJavaSecuritySystemConfiguratorAccess(JavaSecuritySystemConfiguratorAccess jssca) {
+        javaSecuritySystemConfiguratorAccess = jssca;
+    }
+
+    public static JavaSecuritySystemConfiguratorAccess getJavaSecuritySystemConfiguratorAccess() {
+        return javaSecuritySystemConfiguratorAccess;
     }
 }

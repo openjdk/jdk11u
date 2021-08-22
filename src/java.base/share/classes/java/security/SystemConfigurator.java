@@ -1,11 +1,13 @@
 /*
- * Copyright (c) 2019, Red Hat, Inc.
+ * Copyright (c) 2019, 2020, Red Hat, Inc.
  *
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
  *
  * This code is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -34,10 +36,10 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import jdk.internal.misc.SharedSecrets;
+import jdk.internal.misc.JavaSecuritySystemConfiguratorAccess;
 import sun.security.util.Debug;
 
 /**
@@ -47,7 +49,7 @@ import sun.security.util.Debug;
  *
  */
 
-class SystemConfigurator {
+final class SystemConfigurator {
 
     private static final Debug sdebug =
             Debug.getInstance("properties");
@@ -61,15 +63,16 @@ class SystemConfigurator {
     private static final String CRYPTO_POLICIES_CONFIG =
             CRYPTO_POLICIES_BASE_DIR + "/config";
 
-    private static final class SecurityProviderInfo {
-        int number;
-        String key;
-        String value;
-        SecurityProviderInfo(int number, String key, String value) {
-            this.number = number;
-            this.key = key;
-            this.value = value;
-        }
+    private static boolean systemFipsEnabled = false;
+
+    static {
+        SharedSecrets.setJavaSecuritySystemConfiguratorAccess(
+            new JavaSecuritySystemConfiguratorAccess() {
+                @Override
+                public boolean isSystemFipsEnabled() {
+                    return SystemConfigurator.isSystemFipsEnabled();
+                }
+            });
     }
 
     /*
@@ -128,9 +131,9 @@ class SystemConfigurator {
                     String nonFipsKeystoreType = props.getProperty("keystore.type");
                     props.put("keystore.type", keystoreTypeValue);
                     if (keystoreTypeValue.equals("PKCS11")) {
-                    	// If keystore.type is PKCS11, javax.net.ssl.keyStore
-                    	// must be "NONE". See JDK-8238264.
-                    	System.setProperty("javax.net.ssl.keyStore", "NONE");
+                        // If keystore.type is PKCS11, javax.net.ssl.keyStore
+                        // must be "NONE". See JDK-8238264.
+                        System.setProperty("javax.net.ssl.keyStore", "NONE");
                     }
                     if (System.getProperty("javax.net.ssl.trustStoreType") == null) {
                         // If no trustStoreType has been set, use the
@@ -144,12 +147,13 @@ class SystemConfigurator {
                         sdebug.println("FIPS mode default keystore.type = " +
                                 keystoreTypeValue);
                         sdebug.println("FIPS mode javax.net.ssl.keyStore = " +
-                        		System.getProperty("javax.net.ssl.keyStore", ""));
+                                System.getProperty("javax.net.ssl.keyStore", ""));
                         sdebug.println("FIPS mode javax.net.ssl.trustStoreType = " +
                                 System.getProperty("javax.net.ssl.trustStoreType", ""));
                     }
                 }
                 loadedProps = true;
+                systemFipsEnabled = true;
             }
         } catch (Exception e) {
             if (sdebug != null) {
@@ -160,13 +164,30 @@ class SystemConfigurator {
         return loadedProps;
     }
 
+    /**
+     * Returns whether or not global system FIPS alignment is enabled.
+     *
+     * Value is always 'false' before java.security.Security class is
+     * initialized.
+     *
+     * Call from out of this package through SharedSecrets:
+     *   SharedSecrets.getJavaSecuritySystemConfiguratorAccess()
+     *           .isSystemFipsEnabled();
+     *
+     * @return  a boolean value indicating whether or not global
+     *          system FIPS alignment is enabled.
+     */
+    static boolean isSystemFipsEnabled() {
+        return systemFipsEnabled;
+    }
+
     /*
      * FIPS is enabled only if crypto-policies are set to "FIPS"
      * and the com.redhat.fips property is true.
      */
     private static boolean enableFips() throws Exception {
-        boolean fipsEnabled = Boolean.valueOf(System.getProperty("com.redhat.fips", "true"));
-        if (fipsEnabled) {
+        boolean shouldEnable = Boolean.valueOf(System.getProperty("com.redhat.fips", "true"));
+        if (shouldEnable) {
             String cryptoPoliciesConfig = new String(Files.readAllBytes(Path.of(CRYPTO_POLICIES_CONFIG)));
             if (sdebug != null) { sdebug.println("Crypto config:\n" + cryptoPoliciesConfig); }
             Pattern pattern = Pattern.compile("^FIPS$", Pattern.MULTILINE);

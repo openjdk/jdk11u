@@ -27,6 +27,8 @@ package sun.security.ssl;
 
 import java.security.*;
 import java.util.*;
+
+import jdk.internal.misc.SharedSecrets;
 import sun.security.rsa.SunRsaSignEntries;
 import static sun.security.util.SecurityConstants.PROVIDER_VER;
 import static sun.security.provider.SunEntries.createAliases;
@@ -195,8 +197,13 @@ public abstract class SunJSSE extends java.security.Provider {
             "sun.security.ssl.SSLContextImpl$TLS11Context", null, null);
         ps("SSLContext", "TLSv1.2",
             "sun.security.ssl.SSLContextImpl$TLS12Context", null, null);
-        ps("SSLContext", "TLSv1.3",
-            "sun.security.ssl.SSLContextImpl$TLS13Context", null, null);
+        if (!SharedSecrets.getJavaSecuritySystemConfiguratorAccess()
+                .isSystemFipsEnabled()) {
+            // RH1860986: TLSv1.3 key derivation not supported with
+            // the Security Providers available in system FIPS mode.
+            ps("SSLContext", "TLSv1.3",
+                "sun.security.ssl.SSLContextImpl$TLS13Context", null, null);
+        }
         ps("SSLContext", "TLS",
             "sun.security.ssl.SSLContextImpl$TLSContext",
             (isfips? null : createAliases("SSL")), null);
