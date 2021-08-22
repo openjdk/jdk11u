@@ -32,6 +32,7 @@ import java.net.URL;
 
 import jdk.internal.event.EventHelper;
 import jdk.internal.event.SecurityPropertyModificationEvent;
+import jdk.internal.misc.JavaSecuritySystemConfiguratorAccess;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.util.StaticProperty;
 import sun.security.util.Debug;
@@ -74,6 +75,15 @@ public final class Security {
     }
 
     static {
+        // Initialise here as used by code with system properties disabled
+        SharedSecrets.setJavaSecuritySystemConfiguratorAccess(
+            new JavaSecuritySystemConfiguratorAccess() {
+                @Override
+                public boolean isSystemFipsEnabled() {
+                    return SystemConfigurator.isSystemFipsEnabled();
+                }
+            });
+
         // doPrivileged here because there are multiple
         // things in initialize that might require privs.
         // (the FileInputStream call and the File.exists call,
@@ -193,9 +203,8 @@ public final class Security {
         }
 
         String disableSystemProps = System.getProperty("java.security.disableSystemPropertiesFile");
-        if (disableSystemProps == null &&
-            "true".equalsIgnoreCase(props.getProperty
-                ("security.useSystemPropertiesFile"))) {
+        if ((disableSystemProps == null || "false".equalsIgnoreCase(disableSystemProps)) &&
+            "true".equalsIgnoreCase(props.getProperty("security.useSystemPropertiesFile"))) {
             if (SystemConfigurator.configure(props)) {
                 loadedProps = true;
             }

@@ -38,8 +38,6 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaSecuritySystemConfiguratorAccess;
 import sun.security.util.Debug;
 
 /**
@@ -64,16 +62,6 @@ final class SystemConfigurator {
             CRYPTO_POLICIES_BASE_DIR + "/config";
 
     private static boolean systemFipsEnabled = false;
-
-    static {
-        SharedSecrets.setJavaSecuritySystemConfiguratorAccess(
-            new JavaSecuritySystemConfiguratorAccess() {
-                @Override
-                public boolean isSystemFipsEnabled() {
-                    return SystemConfigurator.isSystemFipsEnabled();
-                }
-            });
-    }
 
     /*
      * Invoked when java.security.Security class is initialized, if
