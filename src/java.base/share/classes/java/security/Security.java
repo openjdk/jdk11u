@@ -196,26 +196,8 @@ public final class Security {
         if (disableSystemProps == null &&
             "true".equalsIgnoreCase(props.getProperty
                 ("security.useSystemPropertiesFile"))) {
-
-            // now load the system file, if it exists, so its values
-            // will win if they conflict with the earlier values
-            try (BufferedInputStream bis =
-                 new BufferedInputStream(new FileInputStream(SYSTEM_PROPERTIES))) {
-                props.load(bis);
+            if (SystemConfigurator.configure(props)) {
                 loadedProps = true;
-
-                if (sdebug != null) {
-                    sdebug.println("reading system security properties file " +
-                                   SYSTEM_PROPERTIES);
-                    sdebug.println(props.toString());
-                }
-            } catch (IOException e) {
-                if (sdebug != null) {
-                    sdebug.println
-                        ("unable to load security properties from " +
-                         SYSTEM_PROPERTIES);
-                    e.printStackTrace();
-                }
             }
         }
 
