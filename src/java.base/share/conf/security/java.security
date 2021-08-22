@@ -336,6 +336,13 @@ package.definition=sun.misc.,\
 security.overridePropertiesFile=true
 
 #
+# Determines whether this properties file will be appended to
+# using the system properties file stored at
+# /etc/crypto-policies/back-ends/java.config
+#
+security.useSystemPropertiesFile=true
+
+#
 # Determines the default key and trust manager factory algorithms for
 # the javax.net.ssl package.
 #
