@@ -49,6 +49,7 @@ package sun.security.pkcs11.wrapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
 import java.util.*;
 
 import java.security.AccessController;
@@ -150,16 +151,28 @@ public class PKCS11 {
 
     public static synchronized PKCS11 getInstance(String pkcs11ModulePath,
             String functionList, CK_C_INITIALIZE_ARGS pInitArgs,
-            boolean omitInitialize) throws IOException, PKCS11Exception {
+            boolean omitInitialize, MethodHandle fipsKeyImporter)
+                    throws IOException, PKCS11Exception {
         // we may only call C_Initialize once per native .so/.dll
         // so keep a cache using the (non-canonicalized!) path
         PKCS11 pkcs11 = moduleMap.get(pkcs11ModulePath);
         if (pkcs11 == null) {
+            boolean nssFipsMode = fipsKeyImporter != null;
             if ((pInitArgs != null)
                     && ((pInitArgs.flags & CKF_OS_LOCKING_OK) != 0)) {
-                pkcs11 = new PKCS11(pkcs11ModulePath, functionList);
+                if (nssFipsMode) {
+                    pkcs11 = new FIPSPKCS11(pkcs11ModulePath, functionList,
+                            fipsKeyImporter);
+                } else {
+                    pkcs11 = new PKCS11(pkcs11ModulePath, functionList);
+                }
             } else {
-                pkcs11 = new SynchronizedPKCS11(pkcs11ModulePath, functionList);
+                if (nssFipsMode) {
+                    pkcs11 = new SynchronizedFIPSPKCS11(pkcs11ModulePath,
+                            functionList, fipsKeyImporter);
+                } else {
+                    pkcs11 = new SynchronizedPKCS11(pkcs11ModulePath, functionList);
+                }
             }
             if (omitInitialize == false) {
                 try {
@@ -1907,6 +1920,71 @@ static class SynchronizedPKCS11 extends PKCS11 {
     public synchronized void C_GenerateRandom(long hSession, byte[] randomData)
             throws PKCS11Exception {
         super.C_GenerateRandom(hSession, randomData);
+    }
+}
+
+// PKCS11 subclass that allows using plain private or secret keys in
+// FIPS-configured NSS Software Tokens. Only used when System FIPS
+// is enabled.
+static class FIPSPKCS11 extends PKCS11 {
+    private MethodHandle fipsKeyImporter;
+    FIPSPKCS11(String pkcs11ModulePath, String functionListName,
+            MethodHandle fipsKeyImporter) throws IOException {
+        super(pkcs11ModulePath, functionListName);
+        this.fipsKeyImporter = fipsKeyImporter;
+    }
+
+    public synchronized long C_CreateObject(long hSession,
+            CK_ATTRIBUTE[] pTemplate) throws PKCS11Exception {
+        // Creating sensitive key objects from plain key material in a
+        // FIPS-configured NSS Software Token is not allowed. We apply
+        // a key-unwrapping scheme to achieve so.
+        if (FIPSPKCS11Helper.isSensitiveObject(pTemplate)) {
+            try {
+                return ((Long)fipsKeyImporter.invoke(hSession, pTemplate))
+                        .longValue();
+            } catch (Throwable t) {
+                throw new PKCS11Exception(CKR_GENERAL_ERROR);
+            }
+        }
+        return super.C_CreateObject(hSession, pTemplate);
+    }
+}
+
+// FIPSPKCS11 synchronized counterpart.
+static class SynchronizedFIPSPKCS11 extends SynchronizedPKCS11 {
+    private MethodHandle fipsKeyImporter;
+    SynchronizedFIPSPKCS11(String pkcs11ModulePath, String functionListName,
+            MethodHandle fipsKeyImporter) throws IOException {
+        super(pkcs11ModulePath, functionListName);
+        this.fipsKeyImporter = fipsKeyImporter;
+    }
+
+    public synchronized long C_CreateObject(long hSession,
+            CK_ATTRIBUTE[] pTemplate) throws PKCS11Exception {
+        // See FIPSPKCS11::C_CreateObject.
+        if (FIPSPKCS11Helper.isSensitiveObject(pTemplate)) {
+            try {
+                return ((Long)fipsKeyImporter.invoke(hSession, pTemplate))
+                        .longValue();
+            } catch (Throwable t) {
+                throw new PKCS11Exception(CKR_GENERAL_ERROR);
+            }
+        }
+        return super.C_CreateObject(hSession, pTemplate);
+    }
+}
+
+private static class FIPSPKCS11Helper {
+    static boolean isSensitiveObject(CK_ATTRIBUTE[] pTemplate) {
+        for (CK_ATTRIBUTE attr : pTemplate) {
+            if (attr.type == CKA_CLASS &&
+                    (attr.getLong() == CKO_PRIVATE_KEY ||
+                    attr.getLong() == CKO_SECRET_KEY)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 }

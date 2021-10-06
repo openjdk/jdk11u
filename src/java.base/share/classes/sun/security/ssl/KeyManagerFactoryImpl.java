@@ -33,7 +33,12 @@ import java.security.KeyStore.*;
 
 import javax.net.ssl.*;
 
+import jdk.internal.misc.SharedSecrets;
+
 abstract class KeyManagerFactoryImpl extends KeyManagerFactorySpi {
+
+    private static final boolean plainKeySupportEnabled = SharedSecrets
+            .getJavaSecuritySystemConfiguratorAccess().isPlainKeySupportEnabled();
 
     X509ExtendedKeyManager keyManager;
     boolean isInitialized;
@@ -62,7 +67,8 @@ abstract class KeyManagerFactoryImpl extends KeyManagerFactorySpi {
                 KeyStoreException, NoSuchAlgorithmException,
                 UnrecoverableKeyException {
             if ((ks != null) && SunJSSE.isFIPS()) {
-                if (ks.getProvider() != SunJSSE.cryptoProvider) {
+                if (ks.getProvider() != SunJSSE.cryptoProvider &&
+                        !plainKeySupportEnabled) {
                     throw new KeyStoreException("FIPS mode: KeyStore must be "
                         + "from provider " + SunJSSE.cryptoProvider.getName());
                 }
@@ -91,8 +97,8 @@ abstract class KeyManagerFactoryImpl extends KeyManagerFactorySpi {
                 keyManager = new X509KeyManagerImpl(
                         Collections.<Builder>emptyList());
             } else {
-                if (SunJSSE.isFIPS() &&
-                        (ks.getProvider() != SunJSSE.cryptoProvider)) {
+                if (SunJSSE.isFIPS() && (ks.getProvider() != SunJSSE.cryptoProvider)
+                        && !plainKeySupportEnabled) {
                     throw new KeyStoreException(
                         "FIPS mode: KeyStore must be " +
                         "from provider " + SunJSSE.cryptoProvider.getName());

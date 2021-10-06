@@ -55,6 +55,7 @@ final class SystemConfigurator {
             CRYPTO_POLICIES_BASE_DIR + "/back-ends/java.config";
 
     private static boolean systemFipsEnabled = false;
+    private static boolean plainKeySupportEnabled = false;
 
     private static final String SYSTEMCONF_NATIVE_LIB = "systemconf";
 
@@ -149,6 +150,16 @@ final class SystemConfigurator {
                 }
                 loadedProps = true;
                 systemFipsEnabled = true;
+                String plainKeySupport = System.getProperty("com.redhat.fips.plainKeySupport",
+                                                            "true");
+                plainKeySupportEnabled = !"false".equals(plainKeySupport);
+                if (sdebug != null) {
+                    if (plainKeySupportEnabled) {
+                        sdebug.println("FIPS support enabled with plain key support");
+                    } else {
+                        sdebug.println("FIPS support enabled without plain key support");
+                    }
+                }
             }
         } catch (Exception e) {
             if (sdebug != null) {
@@ -174,6 +185,19 @@ final class SystemConfigurator {
      */
     static boolean isSystemFipsEnabled() {
         return systemFipsEnabled;
+    }
+
+    /**
+     * Returns {@code true} if system FIPS alignment is enabled
+     * and plain key support is allowed.  Plain key support is
+     * enabled by default but can be disabled with
+     * {@code -Dcom.redhat.fips.plainKeySupport=false}.
+     *
+     * @return a boolean indicating whether plain key support
+     *         should be enabled.
+     */
+    static boolean isPlainKeySupportEnabled() {
+        return plainKeySupportEnabled;
     }
 
     /*
