@@ -32,9 +32,9 @@
  *          java.net.http/jdk.internal.net.http.hpack
  *          java.logging
  *          jdk.httpserver
- * @library /test/lib http2/server
+ * @library /lib/testlibrary http2/server
  * @build Http2TestServer
- * @build jdk.test.lib.net.SimpleSSLContext
+ * @build jdk.testlibrary.SimpleSSLContext
  * @run testng/othervm
  *       -Djdk.tls.acknowledgeCloseNotify=true
  *       -Djdk.httpclient.HttpClient.log=trace,headers,requests
@@ -76,7 +76,7 @@ import javax.net.ssl.SSLContext;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
-import jdk.test.lib.net.SimpleSSLContext;
+import jdk.testlibrary.SimpleSSLContext;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.DataProvider;
@@ -153,7 +153,7 @@ public class UserCookieTest implements HttpServerAdapters {
         cookieHeaders.put("Cookie", cookies);
         String userCookie = "PRICE=42";
         List<String> expectedCookies =
-                Stream.concat(cookies.stream(), Stream.of(userCookie)).toList();
+                Stream.concat(cookies.stream(), Stream.of(userCookie)).collect(Collectors.toList());
 
 
 
@@ -178,7 +178,7 @@ public class UserCookieTest implements HttpServerAdapters {
             assertEquals(response.headers().allValues("X-Request-Cookie"),
                     expectedCookies.stream()
                             .filter(s -> !s.startsWith("LOC"))
-                            .toList());
+                            .collect(Collectors.toList()));
             requestBuilder = HttpRequest.newBuilder(uri)
                     .header("X-uuid", "uuid-" + requestCounter.incrementAndGet())
                     .header("Cookie", userCookie);
