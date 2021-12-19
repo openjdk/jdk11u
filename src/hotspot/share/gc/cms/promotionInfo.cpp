@@ -95,13 +95,13 @@ void PromotionInfo::track(PromotedObject* trackOop, Klass* klassOfOop) {
   // make a copy of header as it may need to be spooled
   markOop mark = oop(trackOop)->mark_raw();
   trackOop->clear_next();
-  if (mark->must_be_preserved_for_cms_scavenge(klassOfOop)) {
+  if (mark.must_be_preserved_for_cms_scavenge(klassOfOop)) {
     // save non-prototypical header, and mark oop
     saveDisplacedHeader(mark);
     trackOop->setDisplacedMark();
   } else {
     // we'd like to assert something like the following:
-    // assert(mark == markOopDesc::prototype(), "consistency check");
+    // assert(mark == markOop::prototype(), "consistency check");
     // ... but the above won't work because the age bits have not (yet) been
     // cleared. The remainder of the check would be identical to the
     // condition checked in must_be_preserved() above, so we don't really

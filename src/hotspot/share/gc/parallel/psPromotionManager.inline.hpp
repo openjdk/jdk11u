@@ -119,13 +119,13 @@ inline oop PSPromotionManager::copy_to_survivor_space(oop o) {
   markOop test_mark = o->mark_raw();
 
   // The same test as "o->is_forwarded()"
-  if (!test_mark->is_marked()) {
+  if (!test_mark.is_marked()) {
     bool new_obj_is_tenured = false;
     size_t new_obj_size = o->size();
 
     // Find the objects age, MT safe.
-    uint age = (test_mark->has_displaced_mark_helper() /* o->has_displaced_mark() */) ?
-      test_mark->displaced_mark_helper()->age() : test_mark->age();
+    uint age = (test_mark.has_displaced_mark_helper() /* o->has_displaced_mark() */) ?
+      test_mark.displaced_mark_helper().age() : test_mark.age();
 
     if (!promote_immediately) {
       // Try allocating obj in to-space (unless too old)

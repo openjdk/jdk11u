@@ -195,7 +195,7 @@ void* Klass::operator new(size_t size, ClassLoaderData* loader_data, size_t word
 // Need to set the _java_mirror field explicitly to not hit an assert that the field
 // should be NULL before setting it.
 Klass::Klass(KlassID id) : _id(id),
-                           _prototype_header(markOopDesc::prototype()),
+                           _prototype_header(markOop::prototype()),
                            _shared_class_path_index(-1),
                            _java_mirror(NULL) {
   CDS_ONLY(_shared_class_flags = 0;)
@@ -682,7 +682,7 @@ void Klass::oop_print_on(oop obj, outputStream* st) {
 
   if (WizardMode) {
      // print header
-     obj->mark()->print_on(st);
+     obj->mark().print_on(st);
   }
 
   // print class

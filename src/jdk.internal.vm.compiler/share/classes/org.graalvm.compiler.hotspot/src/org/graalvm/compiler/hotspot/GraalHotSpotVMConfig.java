@@ -399,17 +399,17 @@ public class GraalHotSpotVMConfig extends GraalHotSpotVMConfigBase {
 
     public final int osThreadInterruptedOffset = getFieldOffset("OSThread::_interrupted", Integer.class, "jint");
 
-    public final long markOopDescHashShift = getConstant("markOopDesc::hash_shift", Long.class);
+    public final long markOopHashShift = getConstant("markOop::hash_shift", Long.class);
 
-    public final int biasedLockMaskInPlace = getConstant("markOopDesc::biased_lock_mask_in_place", Integer.class);
-    public final int ageMaskInPlace = getConstant("markOopDesc::age_mask_in_place", Integer.class);
-    public final int epochMaskInPlace = getConstant("markOopDesc::epoch_mask_in_place", Integer.class);
-    public final long markOopDescHashMask = getConstant("markOopDesc::hash_mask", Long.class);
-    public final long markOopDescHashMaskInPlace = getConstant("markOopDesc::hash_mask_in_place", Long.class);
+    public final int biasedLockMaskInPlace = getConstant("markOop::biased_lock_mask_in_place", Integer.class);
+    public final int ageMaskInPlace = getConstant("markOop::age_mask_in_place", Integer.class);
+    public final int epochMaskInPlace = getConstant("markOop::epoch_mask_in_place", Integer.class);
+    public final long markOopHashMask = getConstant("markOop::hash_mask", Long.class);
+    public final long markOopHashMaskInPlace = getConstant("markOop::hash_mask_in_place", Long.class);
 
-    public final int unlockedMask = getConstant("markOopDesc::unlocked_value", Integer.class);
-    public final int monitorMask = getConstant("markOopDesc::monitor_value", Integer.class, -1);
-    public final int biasedLockPattern = getConstant("markOopDesc::biased_lock_pattern", Integer.class);
+    public final int unlockedMask = getConstant("markOop::unlocked_value", Integer.class);
+    public final int monitorMask = getConstant("markOop::monitor_value", Integer.class, -1);
+    public final int biasedLockPattern = getConstant("markOop::biased_lock_pattern", Integer.class);
 
     // This field has no type in vmStructs.cpp
     public final int objectMonitorOwner = getFieldOffset("ObjectMonitor::_owner", Integer.class, null, -1);
@@ -417,34 +417,34 @@ public class GraalHotSpotVMConfig extends GraalHotSpotVMConfigBase {
     public final int objectMonitorCxq = getFieldOffset("ObjectMonitor::_cxq", Integer.class, "ObjectWaiter*", -1);
     public final int objectMonitorEntryList = getFieldOffset("ObjectMonitor::_EntryList", Integer.class, "ObjectWaiter*", -1);
 
-    public final int markWordNoHashInPlace = getConstant("markOopDesc::no_hash_in_place", Integer.class);
-    public final int markWordNoLockInPlace = getConstant("markOopDesc::no_lock_in_place", Integer.class);
+    public final int markWordNoHashInPlace = getConstant("markOop::no_hash_in_place", Integer.class);
+    public final int markWordNoLockInPlace = getConstant("markOop::no_lock_in_place", Integer.class);
 
     /**
-     * See {@code markOopDesc::prototype()}.
+     * See {@code markOop::prototype()}.
      */
     public long arrayPrototypeMarkWord() {
         return markWordNoHashInPlace | markWordNoLockInPlace;
     }
 
     /**
-     * See {@code markOopDesc::copy_set_hash()}.
+     * See {@code markOop::copy_set_hash()}.
      */
     public long tlabIntArrayMarkWord() {
-        long tmp = arrayPrototypeMarkWord() & (~markOopDescHashMaskInPlace);
-        tmp |= ((0x2 & markOopDescHashMask) << markOopDescHashShift);
+        long tmp = arrayPrototypeMarkWord() & (~markOopHashMaskInPlace);
+        tmp |= ((0x2 & markOopHashMask) << markOopHashShift);
         return tmp;
     }
 
     /**
      * Mark word right shift to get identity hash code.
      */
-    public final int identityHashCodeShift = getConstant("markOopDesc::hash_shift", Integer.class);
+    public final int identityHashCodeShift = getConstant("markOop::hash_shift", Integer.class);
 
     /**
      * Identity hash code value when uninitialized.
      */
-    public final int uninitializedIdentityHashCodeValue = getConstant("markOopDesc::no_hash", Integer.class);
+    public final int uninitializedIdentityHashCodeValue = getConstant("markOop::no_hash", Integer.class);
 
     public final int methodAccessFlagsOffset = getFieldOffset("Method::_access_flags", Integer.class, "AccessFlags");
     public final int methodConstMethodOffset = getFieldOffset("Method::_constMethod", Integer.class, "ConstMethod*");

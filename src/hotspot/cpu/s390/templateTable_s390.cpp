@@ -3865,7 +3865,7 @@ void TemplateTable::_new() {
       __ z_stg(prototype, Address(RallocatedObject, oopDesc::mark_offset_in_bytes()));
     } else {
       __ store_const(Address(RallocatedObject, oopDesc::mark_offset_in_bytes()),
-                     (long)markOopDesc::prototype());
+                     (long)markOop::prototype());
     }
 
     __ store_klass_gap(Rzero, RallocatedObject);  // Zero klass gap for compressed oops.

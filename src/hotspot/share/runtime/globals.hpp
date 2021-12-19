@@ -2586,7 +2586,7 @@ define_pd_global(uint64_t,MaxRAM,                    1ULL*G);
   product(uintx, StringDeduplicationAgeThreshold, 3,                        \
           "A string must reach this age (or be promoted to an old region) " \
           "to be considered for deduplication")                             \
-          range(1, markOopDesc::max_age)                                    \
+          range(1, markOop::max_age)                                        \
                                                                             \
   diagnostic(bool, StringDeduplicationResizeALot, false,                    \
           "Force table resize every time the table is scanned")             \

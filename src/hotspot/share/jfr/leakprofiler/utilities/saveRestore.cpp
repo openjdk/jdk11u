@@ -27,7 +27,7 @@
 #include "jfr/leakprofiler/utilities/saveRestore.hpp"
 #include "oops/oop.inline.hpp"
 
-MarkOopContext::MarkOopContext() : _obj(NULL), _mark_oop(NULL) {}
+MarkOopContext::MarkOopContext() : _obj(NULL), _mark_oop(markOop::zero()) {}
 
 MarkOopContext::MarkOopContext(const oop obj) : _obj(obj), _mark_oop(obj->mark()) {
   assert(_obj->mark() == _mark_oop, "invariant");
@@ -36,8 +36,8 @@ MarkOopContext::MarkOopContext(const oop obj) : _obj(obj), _mark_oop(obj->mark()
   // This is an "impossible" state during a safepoint,
   // hence we will use it to quickly identify objects
   // during the reachability search from gc roots.
-  assert(NULL == markOopDesc::INFLATING(), "invariant");
-  _obj->set_mark(markOopDesc::INFLATING());
+  assert(NULL == markOop::INFLATING(), "invariant");
+  _obj->set_mark(markOop::INFLATING());
   assert(NULL == obj->mark(), "invariant");
 }
 
@@ -48,7 +48,7 @@ MarkOopContext::~MarkOopContext() {
   }
 }
 
-MarkOopContext::MarkOopContext(const MarkOopContext& rhs) : _obj(NULL), _mark_oop(NULL) {
+MarkOopContext::MarkOopContext(const MarkOopContext& rhs) : _obj(NULL), _mark_oop(markOop::zero()) {
   swap(const_cast<MarkOopContext&>(rhs));
 }
 

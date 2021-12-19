@@ -400,7 +400,7 @@ oop MemAllocator::finish(HeapWord* mem) const {
     oopDesc::set_mark_raw(mem, _klass->prototype_header());
   } else {
     // May be bootstrapping
-    oopDesc::set_mark_raw(mem, markOopDesc::prototype());
+    oopDesc::set_mark_raw(mem, markOop::prototype());
   }
   // Need a release store to ensure array/class length, mark word, and
   // object zeroing are visible before setting the klass non-NULL, for

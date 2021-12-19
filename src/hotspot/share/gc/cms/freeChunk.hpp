@@ -62,8 +62,8 @@ class FreeChunk {
   FreeChunk* _prev;
   FreeChunk* _next;
 
-  markOop mark()     const volatile { return (markOop)_size; }
-  void set_mark(markOop m)          { _size = (size_t)m; }
+  markOop mark()     const volatile { return markOop((uintptr_t)_size); }
+  void set_mark(markOop m)          { _size = (size_t)m.value(); }
 
  public:
   NOT_PRODUCT(static const size_t header_size();)
@@ -79,7 +79,7 @@ class FreeChunk {
   }
 
   bool is_free() const volatile {
-    LP64_ONLY(if (UseCompressedOops) return mark()->is_cms_free_chunk(); else)
+    LP64_ONLY(if (UseCompressedOops) return mark().is_cms_free_chunk(); else)
     return (((intptr_t)_prev) & 0x1) == 0x1;
   }
   bool cantCoalesce() const {
@@ -100,11 +100,11 @@ class FreeChunk {
   debug_only(void* size_addr() const { return (void*)&_size; })
 
   size_t size() const volatile {
-    LP64_ONLY(if (UseCompressedOops) return mark()->get_size(); else )
+    LP64_ONLY(if (UseCompressedOops) return mark().get_size(); else )
     return _size;
   }
   void set_size(size_t sz) {
-    LP64_ONLY(if (UseCompressedOops) set_mark(markOopDesc::set_size_and_free(sz)); else )
+    LP64_ONLY(if (UseCompressedOops) set_mark(markOop::set_size_and_free(sz)); else )
     _size = sz;
   }
 
@@ -126,7 +126,7 @@ class FreeChunk {
 #ifdef _LP64
     if (UseCompressedOops) {
       OrderAccess::storestore();
-      set_mark(markOopDesc::prototype());
+      set_mark(markOop::prototype());
     }
 #endif
     assert(!is_free(), "Error");

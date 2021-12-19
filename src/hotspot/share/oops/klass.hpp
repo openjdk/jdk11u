@@ -28,6 +28,7 @@
 #include "classfile/classLoaderData.hpp"
 #include "memory/iterator.hpp"
 #include "memory/memRegion.hpp"
+#include "oops/markOop.hpp"
 #include "oops/metadata.hpp"
 #include "oops/oop.hpp"
 #include "oops/oopHandle.hpp"

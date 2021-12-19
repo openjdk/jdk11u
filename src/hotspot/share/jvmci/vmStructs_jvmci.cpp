@@ -566,7 +566,7 @@
   declare_constant(Klass::_lh_array_tag_type_value)                       \
   declare_constant(Klass::_lh_array_tag_obj_value)                        \
                                                                           \
-  declare_constant(markOopDesc::no_hash)                                  \
+  declare_constant(markOop::no_hash)                                  \
                                                                           \
   declare_constant(Method::_caller_sensitive)                             \
   declare_constant(Method::_force_inline)                                 \
@@ -598,19 +598,19 @@
   declare_constant(InvocationCounter::count_increment)                    \
   declare_constant(InvocationCounter::count_shift)                        \
                                                                           \
-  declare_constant(markOopDesc::hash_shift)                               \
+  declare_constant(markOop::hash_shift)                               \
                                                                           \
-  declare_constant(markOopDesc::biased_lock_mask_in_place)                \
-  declare_constant(markOopDesc::age_mask_in_place)                        \
-  declare_constant(markOopDesc::epoch_mask_in_place)                      \
-  declare_constant(markOopDesc::hash_mask)                                \
-  declare_constant(markOopDesc::hash_mask_in_place)                       \
+  declare_constant(markOop::biased_lock_mask_in_place)                \
+  declare_constant(markOop::age_mask_in_place)                        \
+  declare_constant(markOop::epoch_mask_in_place)                      \
+  declare_constant(markOop::hash_mask)                                \
+  declare_constant(markOop::hash_mask_in_place)                       \
                                                                           \
-  declare_constant(markOopDesc::unlocked_value)                           \
-  declare_constant(markOopDesc::biased_lock_pattern)                      \
+  declare_constant(markOop::unlocked_value)                           \
+  declare_constant(markOop::biased_lock_pattern)                      \
                                                                           \
-  declare_constant(markOopDesc::no_hash_in_place)                         \
-  declare_constant(markOopDesc::no_lock_in_place)                         \
+  declare_constant(markOop::no_hash_in_place)                         \
+  declare_constant(markOop::no_lock_in_place)                         \
 
 #define VM_ADDRESSES(declare_address, declare_preprocessor_address, declare_function) \
   declare_function(SharedRuntime::register_finalizer)                     \

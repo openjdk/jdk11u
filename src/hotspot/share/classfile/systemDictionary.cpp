@@ -2181,7 +2181,7 @@ void SystemDictionary::update_dictionary(unsigned int d_hash,
       // NOTE that we must only do this when the class is initally
       // defined, not each time it is referenced from a new class loader
       if (k->class_loader() == class_loader()) {
-        k->set_prototype_header(markOopDesc::biased_locking_prototype());
+        k->set_prototype_header(markOop::biased_locking_prototype());
       }
     }
 

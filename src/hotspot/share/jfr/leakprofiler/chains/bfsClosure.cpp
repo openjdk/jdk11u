@@ -131,7 +131,7 @@ void BFSClosure::closure_impl(const oop* reference, const oop pointee) {
   if (!_mark_bits->is_marked(pointee)) {
     _mark_bits->mark_obj(pointee);
     // is the pointee a sample object?
-    if (NULL == pointee->mark()) {
+    if (NULL == pointee->mark().to_pointer()) {
       add_chain(reference, pointee);
     }
 

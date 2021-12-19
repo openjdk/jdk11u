@@ -995,8 +995,8 @@ void InterpreterMacroAssembler::lock_object(Register Rlock) {
     ldr(Rmark, Robj);
 
     // Test if object is already locked
-    assert(markOopDesc::unlocked_value == 1, "adjust this code");
-    tbz(Rmark, exact_log2(markOopDesc::unlocked_value), already_locked);
+    assert(markOop::unlocked_value == 1, "adjust this code");
+    tbz(Rmark, exact_log2(markOop::unlocked_value), already_locked);
 
 #else // AARCH64
 
@@ -1009,7 +1009,7 @@ void InterpreterMacroAssembler::lock_object(Register Rlock) {
     ldr(Rmark, Address(Robj, oopDesc::mark_offset_in_bytes()));
 
     // Test if object is already locked
-    tst(Rmark, markOopDesc::unlocked_value);
+    tst(Rmark, markOop::unlocked_value);
     b(already_locked, eq);
 
 #endif // !AARCH64

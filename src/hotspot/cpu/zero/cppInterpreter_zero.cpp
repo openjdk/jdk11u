@@ -274,7 +274,7 @@ int CppInterpreter::native_entry(Method* method, intptr_t UNUSED, TRAPS) {
   if (method->is_synchronized()) {
     monitor = (BasicObjectLock*) istate->stack_base();
     oop lockee = monitor->obj();
-    markOop disp = lockee->mark()->set_unlocked();
+    markOop disp = lockee->mark().set_unlocked();
 
     monitor->lock()->set_displaced_header(disp);
     if (lockee->cas_set_mark((markOop)monitor, disp) != disp) {
@@ -421,7 +421,7 @@ int CppInterpreter::native_entry(Method* method, intptr_t UNUSED, TRAPS) {
     monitor->set_obj(NULL);
 
     if (header != NULL) {
-      markOop old_header = markOopDesc::encode(lock);
+      markOop old_header = markOop::encode(lock);
       if (rcvr->cas_set_mark(header, old_header) != old_header) {
         monitor->set_obj(rcvr); {
           HandleMark hm(thread);

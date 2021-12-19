@@ -665,17 +665,17 @@ BytecodeInterpreter::run(interpreterState istate) {
         BasicObjectLock* mon = &istate->monitor_base()[-1];
         mon->set_obj(rcvr);
         bool success = false;
-        uintptr_t epoch_mask_in_place = (uintptr_t)markOopDesc::epoch_mask_in_place;
+        uintptr_t epoch_mask_in_place = (uintptr_t)markOop::epoch_mask_in_place;
         markOop mark = rcvr->mark();
-        intptr_t hash = (intptr_t) markOopDesc::no_hash;
+        intptr_t hash = (intptr_t) markOop::no_hash;
         // Implies UseBiasedLocking.
-        if (mark->has_bias_pattern()) {
+        if (mark.has_bias_pattern()) {
           uintptr_t thread_ident;
           uintptr_t anticipated_bias_locking_value;
           thread_ident = (uintptr_t)istate->thread();
           anticipated_bias_locking_value =
             (((uintptr_t)rcvr->klass()->prototype_header() | thread_ident) ^ (uintptr_t)mark) &
-            ~((uintptr_t) markOopDesc::age_mask_in_place);
+            ~((uintptr_t) markOop::age_mask_in_place);
 
           if (anticipated_bias_locking_value == 0) {
             // Already biased towards this thread, nothing to do.
@@ -683,10 +683,10 @@ BytecodeInterpreter::run(interpreterState istate) {
               (* BiasedLocking::biased_lock_entry_count_addr())++;
             }
             success = true;
-          } else if ((anticipated_bias_locking_value & markOopDesc::biased_lock_mask_in_place) != 0) {
+          } else if ((anticipated_bias_locking_value & markOop::biased_lock_mask_in_place) != 0) {
             // Try to revoke bias.
             markOop header = rcvr->klass()->prototype_header();
-            if (hash != markOopDesc::no_hash) {
+            if (hash != markOop::no_hash) {
               header = header->copy_set_hash(hash);
             }
             if (rcvr->cas_set_mark(header, mark) == mark) {
@@ -696,7 +696,7 @@ BytecodeInterpreter::run(interpreterState istate) {
           } else if ((anticipated_bias_locking_value & epoch_mask_in_place) != 0) {
             // Try to rebias.
             markOop new_header = (markOop) ( (intptr_t) rcvr->klass()->prototype_header() | thread_ident);
-            if (hash != markOopDesc::no_hash) {
+            if (hash != markOop::no_hash) {
               new_header = new_header->copy_set_hash(hash);
             }
             if (rcvr->cas_set_mark(new_header, mark) == mark) {
@@ -710,9 +710,9 @@ BytecodeInterpreter::run(interpreterState istate) {
           } else {
             // Try to bias towards thread in case object is anonymously biased.
             markOop header = (markOop) ((uintptr_t) mark &
-                                        ((uintptr_t)markOopDesc::biased_lock_mask_in_place |
-                                         (uintptr_t)markOopDesc::age_mask_in_place | epoch_mask_in_place));
-            if (hash != markOopDesc::no_hash) {
+                                        ((uintptr_t)markOop::biased_lock_mask_in_place |
+                                         (uintptr_t)markOop::age_mask_in_place | epoch_mask_in_place));
+            if (hash != markOop::no_hash) {
               header = header->copy_set_hash(hash);
             }
             markOop new_header = (markOop) ((uintptr_t) header | thread_ident);
@@ -731,7 +731,7 @@ BytecodeInterpreter::run(interpreterState istate) {
 
         // Traditional lightweight locking.
         if (!success) {
-          markOop displaced = rcvr->mark()->set_unlocked();
+          markOop displaced = rcvr->mark().set_unlocked();
           mon->lock()->set_displaced_header(displaced);
           bool call_vm = UseHeavyMonitors;
           if (call_vm || rcvr->cas_set_mark((markOop)mon, displaced) != displaced) {
@@ -850,18 +850,18 @@ BytecodeInterpreter::run(interpreterState istate) {
       assert(entry->obj() == NULL, "Frame manager didn't allocate the monitor");
       entry->set_obj(lockee);
       bool success = false;
-      uintptr_t epoch_mask_in_place = (uintptr_t)markOopDesc::epoch_mask_in_place;
+      uintptr_t epoch_mask_in_place = (uintptr_t)markOop::epoch_mask_in_place;
 
       markOop mark = lockee->mark();
-      intptr_t hash = (intptr_t) markOopDesc::no_hash;
+      intptr_t hash = (intptr_t) markOop::no_hash;
       // implies UseBiasedLocking
-      if (mark->has_bias_pattern()) {
+      if (mark.has_bias_pattern()) {
         uintptr_t thread_ident;
         uintptr_t anticipated_bias_locking_value;
         thread_ident = (uintptr_t)istate->thread();
         anticipated_bias_locking_value =
           (((uintptr_t)lockee->klass()->prototype_header() | thread_ident) ^ (uintptr_t)mark) &
-          ~((uintptr_t) markOopDesc::age_mask_in_place);
+          ~((uintptr_t) markOop::age_mask_in_place);
 
         if  (anticipated_bias_locking_value == 0) {
           // already biased towards this thread, nothing to do
@@ -869,10 +869,10 @@ BytecodeInterpreter::run(interpreterState istate) {
             (* BiasedLocking::biased_lock_entry_count_addr())++;
           }
           success = true;
-        } else if ((anticipated_bias_locking_value & markOopDesc::biased_lock_mask_in_place) != 0) {
+        } else if ((anticipated_bias_locking_value & markOop::biased_lock_mask_in_place) != 0) {
           // try revoke bias
           markOop header = lockee->klass()->prototype_header();
-          if (hash != markOopDesc::no_hash) {
+          if (hash != markOop::no_hash) {
             header = header->copy_set_hash(hash);
           }
           if (lockee->cas_set_mark(header, mark) == mark) {
@@ -883,7 +883,7 @@ BytecodeInterpreter::run(interpreterState istate) {
         } else if ((anticipated_bias_locking_value & epoch_mask_in_place) !=0) {
           // try rebias
           markOop new_header = (markOop) ( (intptr_t) lockee->klass()->prototype_header() | thread_ident);
-          if (hash != markOopDesc::no_hash) {
+          if (hash != markOop::no_hash) {
                 new_header = new_header->copy_set_hash(hash);
           }
           if (lockee->cas_set_mark(new_header, mark) == mark) {
@@ -896,9 +896,9 @@ BytecodeInterpreter::run(interpreterState istate) {
           success = true;
         } else {
           // try to bias towards thread in case object is anonymously biased
-          markOop header = (markOop) ((uintptr_t) mark & ((uintptr_t)markOopDesc::biased_lock_mask_in_place |
-                                                          (uintptr_t)markOopDesc::age_mask_in_place | epoch_mask_in_place));
-          if (hash != markOopDesc::no_hash) {
+          markOop header = (markOop) ((uintptr_t) mark & ((uintptr_t)markOop::biased_lock_mask_in_place |
+                                                          (uintptr_t)markOop::age_mask_in_place | epoch_mask_in_place));
+          if (hash != markOop::no_hash) {
             header = header->copy_set_hash(hash);
           }
           markOop new_header = (markOop) ((uintptr_t) header | thread_ident);
@@ -917,7 +917,7 @@ BytecodeInterpreter::run(interpreterState istate) {
 
       // traditional lightweight locking
       if (!success) {
-        markOop displaced = lockee->mark()->set_unlocked();
+        markOop displaced = lockee->mark().set_unlocked();
         entry->lock()->set_displaced_header(displaced);
         bool call_vm = UseHeavyMonitors;
         if (call_vm || lockee->cas_set_mark((markOop)entry, displaced) != displaced) {
@@ -1790,18 +1790,18 @@ run:
         if (entry != NULL) {
           entry->set_obj(lockee);
           int success = false;
-          uintptr_t epoch_mask_in_place = (uintptr_t)markOopDesc::epoch_mask_in_place;
+          uintptr_t epoch_mask_in_place = (uintptr_t)markOop::epoch_mask_in_place;
 
           markOop mark = lockee->mark();
-          intptr_t hash = (intptr_t) markOopDesc::no_hash;
+          intptr_t hash = (intptr_t) markOop::no_hash;
           // implies UseBiasedLocking
-          if (mark->has_bias_pattern()) {
+          if (mark.has_bias_pattern()) {
             uintptr_t thread_ident;
             uintptr_t anticipated_bias_locking_value;
             thread_ident = (uintptr_t)istate->thread();
             anticipated_bias_locking_value =
               (((uintptr_t)lockee->klass()->prototype_header() | thread_ident) ^ (uintptr_t)mark) &
-              ~((uintptr_t) markOopDesc::age_mask_in_place);
+              ~((uintptr_t) markOop::age_mask_in_place);
 
             if  (anticipated_bias_locking_value == 0) {
               // already biased towards this thread, nothing to do
@@ -1810,10 +1810,10 @@ run:
               }
               success = true;
             }
-            else if ((anticipated_bias_locking_value & markOopDesc::biased_lock_mask_in_place) != 0) {
+            else if ((anticipated_bias_locking_value & markOop::biased_lock_mask_in_place) != 0) {
               // try revoke bias
               markOop header = lockee->klass()->prototype_header();
-              if (hash != markOopDesc::no_hash) {
+              if (hash != markOop::no_hash) {
                 header = header->copy_set_hash(hash);
               }
               if (lockee->cas_set_mark(header, mark) == mark) {
@@ -1824,7 +1824,7 @@ run:
             else if ((anticipated_bias_locking_value & epoch_mask_in_place) !=0) {
               // try rebias
               markOop new_header = (markOop) ( (intptr_t) lockee->klass()->prototype_header() | thread_ident);
-              if (hash != markOopDesc::no_hash) {
+              if (hash != markOop::no_hash) {
                 new_header = new_header->copy_set_hash(hash);
               }
               if (lockee->cas_set_mark(new_header, mark) == mark) {
@@ -1838,10 +1838,10 @@ run:
             }
             else {
               // try to bias towards thread in case object is anonymously biased
-              markOop header = (markOop) ((uintptr_t) mark & ((uintptr_t)markOopDesc::biased_lock_mask_in_place |
-                                                              (uintptr_t)markOopDesc::age_mask_in_place |
+              markOop header = (markOop) ((uintptr_t) mark & ((uintptr_t)markOop::biased_lock_mask_in_place |
+                                                              (uintptr_t)markOop::age_mask_in_place |
                                                               epoch_mask_in_place));
-              if (hash != markOopDesc::no_hash) {
+              if (hash != markOop::no_hash) {
                 header = header->copy_set_hash(hash);
               }
               markOop new_header = (markOop) ((uintptr_t) header | thread_ident);
@@ -1860,7 +1860,7 @@ run:
 
           // traditional lightweight locking
           if (!success) {
-            markOop displaced = lockee->mark()->set_unlocked();
+            markOop displaced = lockee->mark().set_unlocked();
             entry->lock()->set_displaced_header(displaced);
             bool call_vm = UseHeavyMonitors;
             if (call_vm || lockee->cas_set_mark((markOop)entry, displaced) != displaced) {
@@ -1891,11 +1891,11 @@ run:
             BasicLock* lock = most_recent->lock();
             markOop header = lock->displaced_header();
             most_recent->set_obj(NULL);
-            if (!lockee->mark()->has_bias_pattern()) {
+            if (!lockee->mark().has_bias_pattern()) {
               bool call_vm = UseHeavyMonitors;
               // If it isn't recursive we either must swap old header or call the runtime
               if (header != NULL || call_vm) {
-                markOop old_header = markOopDesc::encode(lock);
+                markOop old_header = markOop::encode(lock);
                 if (call_vm || lockee->cas_set_mark(header, old_header) != old_header) {
                   // restore object for the slow case
                   most_recent->set_obj(lockee);
@@ -2181,7 +2181,7 @@ run:
               if (UseBiasedLocking) {
                 result->set_mark(ik->prototype_header());
               } else {
-                result->set_mark(markOopDesc::prototype());
+                result->set_mark(markOop::prototype());
               }
               result->set_klass_gap(0);
               result->set_klass(ik);
@@ -3031,10 +3031,10 @@ run:
           markOop header = lock->displaced_header();
           end->set_obj(NULL);
 
-          if (!lockee->mark()->has_bias_pattern()) {
+          if (!lockee->mark().has_bias_pattern()) {
             // If it isn't recursive we either must swap old header or call the runtime
             if (header != NULL) {
-              markOop old_header = markOopDesc::encode(lock);
+              markOop old_header = markOop::encode(lock);
               if (lockee->cas_set_mark(header, old_header) != old_header) {
                 // restore object for the slow case
                 end->set_obj(lockee);
@@ -3106,11 +3106,11 @@ run:
             markOop header = lock->displaced_header();
             base->set_obj(NULL);
 
-            if (!rcvr->mark()->has_bias_pattern()) {
+            if (!rcvr->mark().has_bias_pattern()) {
               base->set_obj(NULL);
               // If it isn't recursive we either must swap old header or call the runtime
               if (header != NULL) {
-                markOop old_header = markOopDesc::encode(lock);
+                markOop old_header = markOop::encode(lock);
                 if (rcvr->cas_set_mark(header, old_header) != old_header) {
                   // restore object for the slow case
                   base->set_obj(rcvr);

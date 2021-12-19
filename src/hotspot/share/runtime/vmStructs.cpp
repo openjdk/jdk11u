@@ -1285,7 +1285,6 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
     declare_type(arrayOopDesc, oopDesc)                                   \
       declare_type(objArrayOopDesc, arrayOopDesc)                         \
     declare_type(instanceOopDesc, oopDesc)                                \
-    declare_type(markOopDesc, oopDesc)                                    \
                                                                           \
   /**************************************************/                    \
   /* MetadataOopDesc hierarchy (NOTE: some missing) */                    \
@@ -1325,7 +1324,6 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   /* Oops */                                                              \
   /********/                                                              \
                                                                           \
-  declare_oop_type(markOop)                                               \
   declare_oop_type(objArrayOop)                                           \
   declare_oop_type(oop)                                                   \
   declare_oop_type(narrowOop)                                             \
@@ -1981,6 +1979,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
             declare_type(BitMapView, BitMap)                              \
                                                                           \
    declare_integer_type(AccessFlags)  /* FIXME: wrong type (not integer) */\
+   declare_integer_type(markOop)                                          \
   declare_toplevel_type(address)      /* FIXME: should this be an integer type? */\
    declare_integer_type(BasicType)   /* FIXME: wrong type (not integer) */\
   JVMTI_ONLY(declare_toplevel_type(BreakpointInfo))                       \
@@ -2642,45 +2641,45 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   /* consistency. The mask constants are the only ones requiring */       \
   /* 64 bits (on 64-bit platforms). */                                    \
                                                                           \
-  declare_constant(markOopDesc::age_bits)                                 \
-  declare_constant(markOopDesc::lock_bits)                                \
-  declare_constant(markOopDesc::biased_lock_bits)                         \
-  declare_constant(markOopDesc::max_hash_bits)                            \
-  declare_constant(markOopDesc::hash_bits)                                \
+  declare_constant(markOop::age_bits)                                 \
+  declare_constant(markOop::lock_bits)                                \
+  declare_constant(markOop::biased_lock_bits)                         \
+  declare_constant(markOop::max_hash_bits)                            \
+  declare_constant(markOop::hash_bits)                                \
                                                                           \
-  declare_constant(markOopDesc::lock_shift)                               \
-  declare_constant(markOopDesc::biased_lock_shift)                        \
-  declare_constant(markOopDesc::age_shift)                                \
-  declare_constant(markOopDesc::hash_shift)                               \
+  declare_constant(markOop::lock_shift)                               \
+  declare_constant(markOop::biased_lock_shift)                        \
+  declare_constant(markOop::age_shift)                                \
+  declare_constant(markOop::hash_shift)                               \
                                                                           \
-  declare_constant(markOopDesc::lock_mask)                                \
-  declare_constant(markOopDesc::lock_mask_in_place)                       \
-  declare_constant(markOopDesc::biased_lock_mask)                         \
-  declare_constant(markOopDesc::biased_lock_mask_in_place)                \
-  declare_constant(markOopDesc::biased_lock_bit_in_place)                 \
-  declare_constant(markOopDesc::age_mask)                                 \
-  declare_constant(markOopDesc::age_mask_in_place)                        \
-  declare_constant(markOopDesc::epoch_mask)                               \
-  declare_constant(markOopDesc::epoch_mask_in_place)                      \
-  declare_constant(markOopDesc::hash_mask)                                \
-  declare_constant(markOopDesc::hash_mask_in_place)                       \
-  declare_constant(markOopDesc::biased_lock_alignment)                    \
+  declare_constant(markOop::lock_mask)                                \
+  declare_constant(markOop::lock_mask_in_place)                       \
+  declare_constant(markOop::biased_lock_mask)                         \
+  declare_constant(markOop::biased_lock_mask_in_place)                \
+  declare_constant(markOop::biased_lock_bit_in_place)                 \
+  declare_constant(markOop::age_mask)                                 \
+  declare_constant(markOop::age_mask_in_place)                        \
+  declare_constant(markOop::epoch_mask)                               \
+  declare_constant(markOop::epoch_mask_in_place)                      \
+  declare_constant(markOop::hash_mask)                                \
+  declare_constant(markOop::hash_mask_in_place)                       \
+  declare_constant(markOop::biased_lock_alignment)                    \
                                                                           \
-  declare_constant(markOopDesc::locked_value)                             \
-  declare_constant(markOopDesc::unlocked_value)                           \
-  declare_constant(markOopDesc::monitor_value)                            \
-  declare_constant(markOopDesc::marked_value)                             \
-  declare_constant(markOopDesc::biased_lock_pattern)                      \
+  declare_constant(markOop::locked_value)                             \
+  declare_constant(markOop::unlocked_value)                           \
+  declare_constant(markOop::monitor_value)                            \
+  declare_constant(markOop::marked_value)                             \
+  declare_constant(markOop::biased_lock_pattern)                      \
                                                                           \
-  declare_constant(markOopDesc::no_hash)                                  \
-  declare_constant(markOopDesc::no_hash_in_place)                         \
-  declare_constant(markOopDesc::no_lock_in_place)                         \
-  declare_constant(markOopDesc::max_age)                                  \
+  declare_constant(markOop::no_hash)                                  \
+  declare_constant(markOop::no_hash_in_place)                         \
+  declare_constant(markOop::no_lock_in_place)                         \
+  declare_constant(markOop::max_age)                                  \
                                                                           \
   /* Constants in markOop used by CMS. */                                 \
-  declare_constant(markOopDesc::cms_shift)                                \
-  declare_constant(markOopDesc::cms_mask)                                 \
-  declare_constant(markOopDesc::size_shift)                               \
+  declare_constant(markOop::cms_shift)                                \
+  declare_constant(markOop::cms_mask)                                 \
+  declare_constant(markOop::size_shift)                               \
                                                                           \
   /* InvocationCounter constants */                                       \
   declare_constant(InvocationCounter::count_increment)                    \

@@ -28,6 +28,7 @@
 #include "memory/iterator.hpp"
 #include "memory/memRegion.hpp"
 #include "oops/access.hpp"
+#include "oops/markOop.hpp"
 #include "oops/metadata.hpp"
 #include "runtime/atomic.hpp"
 #include "utilities/macros.hpp"

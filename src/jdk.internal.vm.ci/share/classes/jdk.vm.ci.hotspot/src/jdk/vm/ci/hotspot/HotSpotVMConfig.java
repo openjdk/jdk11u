@@ -134,11 +134,11 @@ class HotSpotVMConfig extends HotSpotVMConfigAccess {
     // This is only valid on AMD64.
     final int runtimeCallStackSize = getConstant("frame::arg_reg_save_area_bytes", Integer.class, osArch.equals("amd64") ? null : 0);
 
-    private final int markWordNoHashInPlace = getConstant("markOopDesc::no_hash_in_place", Integer.class);
-    private final int markWordNoLockInPlace = getConstant("markOopDesc::no_lock_in_place", Integer.class);
+    private final int markWordNoHashInPlace = getConstant("markOop::no_hash_in_place", Integer.class);
+    private final int markWordNoLockInPlace = getConstant("markOop::no_lock_in_place", Integer.class);
 
     /**
-     * See {@code markOopDesc::prototype()}.
+     * See {@code markOop::prototype()}.
      */
     long arrayPrototypeMarkWord() {
         return markWordNoHashInPlace | markWordNoLockInPlace;

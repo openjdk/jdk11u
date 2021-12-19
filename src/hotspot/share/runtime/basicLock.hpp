@@ -26,6 +26,7 @@
 #define SHARE_VM_RUNTIME_BASICLOCK_HPP
 
 #include "oops/markOop.hpp"
+#include "runtime/atomic.hpp"
 #include "runtime/handles.hpp"
 
 class BasicLock {
@@ -34,8 +35,13 @@ class BasicLock {
  private:
   volatile markOop _displaced_header;
  public:
-  markOop      displaced_header() const               { return _displaced_header; }
-  void         set_displaced_header(markOop header)   { _displaced_header = header; }
+  markOop displaced_header() const {
+    return Atomic::load(&_displaced_header);
+  }
+
+  void set_displaced_header(markOop header) {
+    Atomic::store(header, &_displaced_header);
+  }
 
   void print_on(outputStream* st) const;
 

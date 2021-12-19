@@ -222,7 +222,7 @@ void javaVFrame::print_lock_info_on(outputStream* st, int frame_count) {
       if (monitor->owner() != NULL) {
         // the monitor is associated with an object, i.e., it is locked
 
-        markOop mark = NULL;
+        markOop mark = markOop::zero();
         const char *lock_state = "locked"; // assume we have the monitor locked
         if (!found_first_monitor && frame_count == 0) {
           // If this is the first frame and we haven't found an owned
@@ -231,17 +231,17 @@ void javaVFrame::print_lock_info_on(outputStream* st, int frame_count) {
           // an inflated monitor that is first on the monitor list in
           // the first frame can block us on a monitor enter.
           mark = monitor->owner()->mark();
-          if (mark->has_monitor() &&
+          if (mark.has_monitor() &&
               ( // we have marked ourself as pending on this monitor
-                mark->monitor() == thread()->current_pending_monitor() ||
+                mark.monitor() == thread()->current_pending_monitor() ||
                 // we are not the owner of this monitor
-                !mark->monitor()->is_entered(thread())
+                !mark.monitor()->is_entered(thread())
               )) {
             lock_state = "waiting to lock";
           } else {
             // We own the monitor which is not as interesting so
             // disable the extra printing below.
-            mark = NULL;
+            mark = markOop::zero();
           }
         } else if (frame_count != 0) {
           // This is not the first frame so we either own this monitor
@@ -250,23 +250,23 @@ void javaVFrame::print_lock_info_on(outputStream* st, int frame_count) {
           // numbered frame on the stack, we have to check all the
           // monitors on the list for this frame.
           mark = monitor->owner()->mark();
-          if (mark->has_monitor() &&
+          if (mark.has_monitor() &&
               ( // we have marked ourself as pending on this monitor
-                mark->monitor() == thread()->current_pending_monitor() ||
+                mark.monitor() == thread()->current_pending_monitor() ||
                 // we are not the owner of this monitor
-                !mark->monitor()->is_entered(thread())
+                !mark.monitor()->is_entered(thread())
               )) {
             lock_state = "waiting to re-lock in wait()";
           } else {
             // We own the monitor which is not as interesting so
             // disable the extra printing below.
-            mark = NULL;
+            mark = markOop::zero();
           }
         }
         print_locked_object_class_name(st, Handle(THREAD, monitor->owner()), lock_state);
-        if (ObjectMonitor::Knob_Verbose && mark != NULL) {
+        if (ObjectMonitor::Knob_Verbose && mark.to_pointer() != NULL) {
           st->print("\t- lockbits=");
-          mark->print_on(st);
+          mark.print_on(st);
           st->cr();
         }
 

@@ -51,39 +51,39 @@ public class Mark extends VMObject {
     Type type  = db.lookupType("oopDesc");
     markField  = type.getCIntegerField("_mark");
 
-    ageBits             = db.lookupLongConstant("markOopDesc::age_bits").longValue();
-    lockBits            = db.lookupLongConstant("markOopDesc::lock_bits").longValue();
-    biasedLockBits      = db.lookupLongConstant("markOopDesc::biased_lock_bits").longValue();
-    maxHashBits         = db.lookupLongConstant("markOopDesc::max_hash_bits").longValue();
-    hashBits            = db.lookupLongConstant("markOopDesc::hash_bits").longValue();
-    lockShift           = db.lookupLongConstant("markOopDesc::lock_shift").longValue();
-    biasedLockShift     = db.lookupLongConstant("markOopDesc::biased_lock_shift").longValue();
-    ageShift            = db.lookupLongConstant("markOopDesc::age_shift").longValue();
-    hashShift           = db.lookupLongConstant("markOopDesc::hash_shift").longValue();
-    lockMask            = db.lookupLongConstant("markOopDesc::lock_mask").longValue();
-    lockMaskInPlace     = db.lookupLongConstant("markOopDesc::lock_mask_in_place").longValue();
-    biasedLockMask      = db.lookupLongConstant("markOopDesc::biased_lock_mask").longValue();
-    biasedLockMaskInPlace  = db.lookupLongConstant("markOopDesc::biased_lock_mask_in_place").longValue();
-    biasedLockBitInPlace  = db.lookupLongConstant("markOopDesc::biased_lock_bit_in_place").longValue();
-    ageMask             = db.lookupLongConstant("markOopDesc::age_mask").longValue();
-    ageMaskInPlace      = db.lookupLongConstant("markOopDesc::age_mask_in_place").longValue();
-    hashMask            = db.lookupLongConstant("markOopDesc::hash_mask").longValue();
-    hashMaskInPlace     = db.lookupLongConstant("markOopDesc::hash_mask_in_place").longValue();
-    biasedLockAlignment  = db.lookupLongConstant("markOopDesc::biased_lock_alignment").longValue();
-    lockedValue         = db.lookupLongConstant("markOopDesc::locked_value").longValue();
-    unlockedValue       = db.lookupLongConstant("markOopDesc::unlocked_value").longValue();
-    monitorValue        = db.lookupLongConstant("markOopDesc::monitor_value").longValue();
-    markedValue         = db.lookupLongConstant("markOopDesc::marked_value").longValue();
-    biasedLockPattern = db.lookupLongConstant("markOopDesc::biased_lock_pattern").longValue();
-    noHash              = db.lookupLongConstant("markOopDesc::no_hash").longValue();
-    noHashInPlace       = db.lookupLongConstant("markOopDesc::no_hash_in_place").longValue();
-    noLockInPlace       = db.lookupLongConstant("markOopDesc::no_lock_in_place").longValue();
-    maxAge              = db.lookupLongConstant("markOopDesc::max_age").longValue();
+    ageBits             = db.lookupLongConstant("markOop::age_bits").longValue();
+    lockBits            = db.lookupLongConstant("markOop::lock_bits").longValue();
+    biasedLockBits      = db.lookupLongConstant("markOop::biased_lock_bits").longValue();
+    maxHashBits         = db.lookupLongConstant("markOop::max_hash_bits").longValue();
+    hashBits            = db.lookupLongConstant("markOop::hash_bits").longValue();
+    lockShift           = db.lookupLongConstant("markOop::lock_shift").longValue();
+    biasedLockShift     = db.lookupLongConstant("markOop::biased_lock_shift").longValue();
+    ageShift            = db.lookupLongConstant("markOop::age_shift").longValue();
+    hashShift           = db.lookupLongConstant("markOop::hash_shift").longValue();
+    lockMask            = db.lookupLongConstant("markOop::lock_mask").longValue();
+    lockMaskInPlace     = db.lookupLongConstant("markOop::lock_mask_in_place").longValue();
+    biasedLockMask      = db.lookupLongConstant("markOop::biased_lock_mask").longValue();
+    biasedLockMaskInPlace  = db.lookupLongConstant("markOop::biased_lock_mask_in_place").longValue();
+    biasedLockBitInPlace  = db.lookupLongConstant("markOop::biased_lock_bit_in_place").longValue();
+    ageMask             = db.lookupLongConstant("markOop::age_mask").longValue();
+    ageMaskInPlace      = db.lookupLongConstant("markOop::age_mask_in_place").longValue();
+    hashMask            = db.lookupLongConstant("markOop::hash_mask").longValue();
+    hashMaskInPlace     = db.lookupLongConstant("markOop::hash_mask_in_place").longValue();
+    biasedLockAlignment  = db.lookupLongConstant("markOop::biased_lock_alignment").longValue();
+    lockedValue         = db.lookupLongConstant("markOop::locked_value").longValue();
+    unlockedValue       = db.lookupLongConstant("markOop::unlocked_value").longValue();
+    monitorValue        = db.lookupLongConstant("markOop::monitor_value").longValue();
+    markedValue         = db.lookupLongConstant("markOop::marked_value").longValue();
+    biasedLockPattern = db.lookupLongConstant("markOop::biased_lock_pattern").longValue();
+    noHash              = db.lookupLongConstant("markOop::no_hash").longValue();
+    noHashInPlace       = db.lookupLongConstant("markOop::no_hash_in_place").longValue();
+    noLockInPlace       = db.lookupLongConstant("markOop::no_lock_in_place").longValue();
+    maxAge              = db.lookupLongConstant("markOop::max_age").longValue();
 
     /* Constants in markOop used by CMS. */
-    cmsShift            = db.lookupLongConstant("markOopDesc::cms_shift").longValue();
-    cmsMask             = db.lookupLongConstant("markOopDesc::cms_mask").longValue();
-    sizeShift           = db.lookupLongConstant("markOopDesc::size_shift").longValue();
+    cmsShift            = db.lookupLongConstant("markOop::cms_shift").longValue();
+    cmsMask             = db.lookupLongConstant("markOop::cms_mask").longValue();
+    sizeShift           = db.lookupLongConstant("markOop::size_shift").longValue();
   }
 
   // Field accessors

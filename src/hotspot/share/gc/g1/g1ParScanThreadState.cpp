@@ -188,8 +188,8 @@ HeapWord* G1ParScanThreadState::allocate_in_next_plab(InCSetState const state,
 
 InCSetState G1ParScanThreadState::next_state(InCSetState const state, markOop const m, uint& age) {
   if (state.is_young()) {
-    age = !m->has_displaced_mark_helper() ? m->age()
-                                          : m->displaced_mark_helper()->age();
+    age = !m.has_displaced_mark_helper() ? m.age()
+                                          : m.displaced_mark_helper().age();
     if (age < _tenuring_threshold) {
       return state;
     }
@@ -271,18 +271,18 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
     Copy::aligned_disjoint_words((HeapWord*) old, obj_ptr, word_sz);
 
     if (dest_state.is_young()) {
-      if (age < markOopDesc::max_age) {
+      if (age < markOop::max_age) {
         age++;
       }
-      if (old_mark->has_displaced_mark_helper()) {
+      if (old_mark.has_displaced_mark_helper()) {
         // In this case, we have to install the mark word first,
         // otherwise obj looks to be forwarded (the old mark word,
         // which contains the forward pointer, was copied)
         obj->set_mark_raw(old_mark);
-        markOop new_mark = old_mark->displaced_mark_helper()->set_age(age);
-        old_mark->set_displaced_mark_helper(new_mark);
+        markOop new_mark = old_mark.displaced_mark_helper().set_age(age);
+        old_mark.set_displaced_mark_helper(new_mark);
       } else {
-        obj->set_mark_raw(old_mark->set_age(age));
+        obj->set_mark_raw(old_mark.set_age(age));
       }
       _age_table.add(age, word_sz);
     } else {

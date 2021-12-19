@@ -97,7 +97,7 @@ void C1_MacroAssembler::lock_object(Register Rmark, Register Roop, Register Rbox
   mov(Rbox, Rscratch);
 
   // and mark it unlocked
-  or3(Rmark, markOopDesc::unlocked_value, Rmark);
+  or3(Rmark, markOop::unlocked_value, Rmark);
 
   // save unlocked object header into the displaced header location on the stack
   st_ptr(Rmark, Rbox, BasicLock::displaced_header_offset_in_bytes());
@@ -179,7 +179,7 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
   if (UseBiasedLocking && !len->is_valid()) {
     ld_ptr(klass, in_bytes(Klass::prototype_header_offset()), t1);
   } else {
-    set((intx)markOopDesc::prototype(), t1);
+    set((intx)markOop::prototype(), t1);
   }
   st_ptr(t1, obj, oopDesc::mark_offset_in_bytes());
   if (UseCompressedClassPointers) {

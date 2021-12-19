@@ -101,10 +101,9 @@ class BasicLock;
 class ObjectMonitor;
 class JavaThread;
 
-class markOopDesc: public oopDesc {
+class markOop {
  private:
-  // Conversion
-  uintptr_t value() const { return (uintptr_t) this; }
+  uintptr_t _value;
 
  public:
   // Constants
@@ -116,6 +115,30 @@ class markOopDesc: public oopDesc {
          cms_bits                 = LP64_ONLY(1) NOT_LP64(0),
          epoch_bits               = 2
   };
+
+  explicit markOop(uintptr_t value) : _value(value) {}
+
+  markOop() { /* uninitialized */}
+
+  // It is critical for performance that this class be trivially
+  // destructable, copyable, and assignable.
+
+  static markOop from_pointer(void* ptr) {
+    return markOop((uintptr_t)ptr);
+  }
+  void* to_pointer() const {
+    return (void*)_value;
+  }
+
+  bool operator==(const markOop& other) const {
+    return _value == other._value;
+  }
+  bool operator!=(const markOop& other) const {
+    return !operator==(other);
+  }
+
+  // Conversion
+  uintptr_t value() const { return _value; }
 
   // The biased locking code currently requires that the age bits be
   // contiguous to the lock bits.
@@ -163,6 +186,9 @@ class markOopDesc: public oopDesc {
   enum { max_age                  = age_mask };
 
   enum { max_bias_epoch           = epoch_mask };
+
+  // Creates a markOop with all bits set to zero.
+  static markOop zero() { return markOop(uintptr_t(0)); }
 
   // Biased Locking accessors.
   // These must be checked by all code which calls into the
@@ -218,13 +244,13 @@ class markOopDesc: public oopDesc {
   // Code that looks at mark outside a lock need to take this into account.
   bool is_being_inflated() const { return (value() == 0); }
 
-  // Distinguished markword value - used when inflating over
-  // an existing stacklock.  0 indicates the markword is "BUSY".
+  // Distinguished markOop value - used when inflating over
+  // an existing stacklock.  0 indicates the markOop is "BUSY".
   // Lockword mutators that use a LD...CAS idiom should always
   // check for and avoid overwriting a 0 value installed by some
   // other thread.  (They should spin or block instead.  The 0 value
   // is transient and *should* be short-lived).
-  static markOop INFLATING() { return (markOop) 0; }    // inflate-in-progress
+  static markOop INFLATING() { return zero(); }    // inflate-in-progress
 
   // Should this header be preserved during GC?
   inline bool must_be_preserved(oop obj_containing_mark) const;
@@ -294,17 +320,17 @@ class markOopDesc: public oopDesc {
   markOop copy_set_hash(intptr_t hash) const {
     intptr_t tmp = value() & (~hash_mask_in_place);
     tmp |= ((hash & hash_mask) << hash_shift);
-    return (markOop)tmp;
+    return markOop(tmp);
   }
   // it is only used to be stored into BasicLock as the
   // indicator that the lock is using heavyweight monitor
   static markOop unused_mark() {
-    return (markOop) marked_value;
+    return markOop(marked_value);
   }
   // the following two functions create the markOop to be
   // stored into object header, it encodes monitor info
   static markOop encode(BasicLock* lock) {
-    return (markOop) lock;
+    return from_pointer(lock);
   }
   static markOop encode(ObjectMonitor* monitor) {
     intptr_t tmp = (intptr_t) monitor;
@@ -330,7 +356,7 @@ class markOopDesc: public oopDesc {
     assert((v & ~age_mask) == 0, "shouldn't overflow age field");
     return markOop((value() & ~age_mask_in_place) | (((uintptr_t)v & age_mask) << age_shift));
   }
-  markOop incr_age()          const { return age() == max_age ? markOop(this) : set_age(age() + 1); }
+  markOop incr_age()          const { return age() == max_age ? markOop(_value) : set_age(age() + 1); }
 
   // hash operations
   intptr_t hash() const {
@@ -353,10 +379,10 @@ class markOopDesc: public oopDesc {
   void print_on(outputStream* st) const;
 
   // Prepare address of oop for placement into mark
-  inline static markOop encode_pointer_as_mark(void* p) { return markOop(p)->set_marked(); }
+  inline static markOop encode_pointer_as_mark(void* p) { return from_pointer(p).set_marked(); }
 
   // Recover address of oop from encoded form used in mark
-  inline void* decode_pointer() { if (UseBiasedLocking && has_bias_pattern()) return NULL; return clear_lock_bits(); }
+  inline void* decode_pointer() { if (UseBiasedLocking && has_bias_pattern()) return NULL; return (void*)clear_lock_bits().value(); }
 
   // These markOops indicate cms free chunk blocks and not objects.
   // In 64 bit, the markOop is set to distinguish them from oops.
@@ -375,7 +401,7 @@ class markOopDesc: public oopDesc {
 
 #ifdef _LP64
   static markOop cms_free_prototype() {
-    return markOop(((intptr_t)prototype() & ~cms_mask_in_place) |
+    return markOop(((intptr_t)prototype().value() & ~cms_mask_in_place) |
                    ((cms_free_chunk_pattern & cms_mask) << cms_shift));
   }
   uintptr_t cms_encoding() const {
@@ -389,10 +415,20 @@ class markOopDesc: public oopDesc {
   size_t get_size() const       { return (size_t)(value() >> size_shift); }
   static markOop set_size_and_free(size_t size) {
     assert((size & ~size_mask) == 0, "shouldn't overflow size field");
-    return markOop(((intptr_t)cms_free_prototype() & ~size_mask_in_place) |
+    return markOop(((intptr_t)cms_free_prototype().value() & ~size_mask_in_place) |
                    (((intptr_t)size & size_mask) << size_shift));
   }
 #endif // _LP64
+};
+
+// Support atomic operations.
+template<>
+struct PrimitiveConversions::Translate<markOop> : public TrueType {
+  typedef markOop Value;
+  typedef uintptr_t Decayed;
+
+  static Decayed decay(const Value& x) { return x.value(); }
+  static Value recover(Decayed x) { return Value(x); }
 };
 
 #endif // SHARE_VM_OOPS_MARKOOP_HPP

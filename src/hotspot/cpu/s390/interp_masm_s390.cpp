@@ -989,7 +989,7 @@ void InterpreterMacroAssembler::lock_object(Register monitor, Register object) {
   }
 
   // Set displaced_header to be (markOop of object | UNLOCK_VALUE).
-  z_oill(displaced_header, markOopDesc::unlocked_value);
+  z_oill(displaced_header, markOop::unlocked_value);
 
   // monitor->lock()->set_displaced_header(displaced_header);
 
@@ -1021,7 +1021,7 @@ void InterpreterMacroAssembler::lock_object(Register monitor, Register object) {
 
   // The prior sequence "LGR, NGR, LTGR" can be done better
   // (Z_R1 is temp and not used after here).
-  load_const_optimized(Z_R0, (~(os::vm_page_size()-1) | markOopDesc::lock_mask_in_place));
+  load_const_optimized(Z_R0, (~(os::vm_page_size()-1) | markOop::lock_mask_in_place));
   z_ngr(Z_R0, current_header); // AND sets CC (result eq/ne 0)
 
   // If condition is true we are done and hence we can store 0 in the displaced

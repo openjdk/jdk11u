@@ -110,7 +110,7 @@ void C1_MacroAssembler::lock_object(Register Rmark, Register Roop, Register Rbox
   }
 
   // ... and mark it unlocked.
-  ori(Rmark, Rmark, markOopDesc::unlocked_value);
+  ori(Rmark, Rmark, markOop::unlocked_value);
 
   // Save unlocked object header into the displaced header location on the stack.
   std(Rmark, BasicLock::displaced_header_offset_in_bytes(), Rbox);
@@ -137,7 +137,7 @@ void C1_MacroAssembler::lock_object(Register Rmark, Register Roop, Register Rbox
   bind(cas_failed);
   // We did not find an unlocked object so see if this is a recursive case.
   sub(Rscratch, Rscratch, R1_SP);
-  load_const_optimized(R0, (~(os::vm_page_size()-1) | markOopDesc::lock_mask_in_place));
+  load_const_optimized(R0, (~(os::vm_page_size()-1) | markOop::lock_mask_in_place));
   and_(R0/*==0?*/, Rscratch, R0);
   std(R0/*==0, perhaps*/, BasicLock::displaced_header_offset_in_bytes(), Rbox);
   bne(CCR0, slow_int);
@@ -215,7 +215,7 @@ void C1_MacroAssembler::initialize_header(Register obj, Register klass, Register
   if (UseBiasedLocking && !len->is_valid()) {
     ld(t1, in_bytes(Klass::prototype_header_offset()), klass);
   } else {
-    load_const_optimized(t1, (intx)markOopDesc::prototype());
+    load_const_optimized(t1, (intx)markOop::prototype());
   }
   std(t1, oopDesc::mark_offset_in_bytes(), obj);
   store_klass(obj, klass);

@@ -131,7 +131,7 @@ template <class T> inline void MarkSweep::follow_root(T* p) {
   T heap_oop = RawAccess<>::oop_load(p);
   if (!CompressedOops::is_null(heap_oop)) {
     oop obj = CompressedOops::decode_not_null(heap_oop);
-    if (!obj->mark_raw()->is_marked()) {
+    if (!obj->mark_raw().is_marked()) {
       mark_object(obj);
       follow_object(obj);
     }

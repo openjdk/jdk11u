@@ -45,7 +45,7 @@ class ObjectSampleMarker : public StackObj {
                         const markOop mark_oop) : _obj(obj),
                                                   _mark_oop(mark_oop) {}
    public:
-    ObjectSampleMarkOop() : _obj(NULL), _mark_oop(NULL) {}
+    ObjectSampleMarkOop() : _obj(NULL), _mark_oop(markOop::zero()) {}
   };
 
   GrowableArray<ObjectSampleMarkOop>* _store;
@@ -72,8 +72,8 @@ class ObjectSampleMarker : public StackObj {
     // This is an "impossible" state during a safepoint,
     // hence we will use it to quickly identify sample objects
     // during the reachability search from gc roots.
-    assert(NULL == markOopDesc::INFLATING(), "invariant");
-    obj->set_mark(markOopDesc::INFLATING());
+    assert(NULL == markOop::INFLATING(), "invariant");
+    obj->set_mark(markOop::INFLATING());
     assert(NULL == obj->mark(), "invariant");
   }
 };

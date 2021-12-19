@@ -1933,7 +1933,7 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
   }
 #endif
 
-  assert(markOopDesc::age_shift == markOopDesc::lock_bits + markOopDesc::biased_lock_bits, "biased locking makes assumptions about bit layout");
+  assert(markOop::age_shift == markOop::lock_bits + markOop::biased_lock_bits, "biased locking makes assumptions about bit layout");
   Address mark_addr(obj_reg, oopDesc::mark_offset_in_bytes());
 
   // Biased locking
@@ -1955,8 +1955,8 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
   // On MP platform loads could return 'stale' values in some cases.
   // That is acceptable since either CAS or slow case path is taken in the worst case.
 
-  andr(tmp_reg, swap_reg, (uintx)markOopDesc::biased_lock_mask_in_place);
-  cmp(tmp_reg, markOopDesc::biased_lock_pattern);
+  andr(tmp_reg, swap_reg, (uintx)markOop::biased_lock_mask_in_place);
+  cmp(tmp_reg, markOop::biased_lock_pattern);
 
   b(cas_label, ne);
 
@@ -1968,9 +1968,9 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
   eor(tmp_reg, tmp_reg, swap_reg);
 
 #ifdef AARCH64
-  ands(tmp_reg, tmp_reg, ~((uintx) markOopDesc::age_mask_in_place));
+  ands(tmp_reg, tmp_reg, ~((uintx) markOop::age_mask_in_place));
 #else
-  bics(tmp_reg, tmp_reg, ((int) markOopDesc::age_mask_in_place));
+  bics(tmp_reg, tmp_reg, ((int) markOop::age_mask_in_place));
 #endif // AARCH64
 
 #ifndef PRODUCT
@@ -1993,7 +1993,7 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
   // If the low three bits in the xor result aren't clear, that means
   // the prototype header is no longer biased and we have to revoke
   // the bias on this object.
-  tst(tmp_reg, (uintx)markOopDesc::biased_lock_mask_in_place);
+  tst(tmp_reg, (uintx)markOop::biased_lock_mask_in_place);
   b(try_revoke_bias, ne);
 
   // Biasing is still enabled for this data type. See whether the
@@ -2005,7 +2005,7 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
   // that the current epoch is invalid in order to do this because
   // otherwise the manipulations it performs on the mark word are
   // illegal.
-  tst(tmp_reg, (uintx)markOopDesc::epoch_mask_in_place);
+  tst(tmp_reg, (uintx)markOop::epoch_mask_in_place);
   b(try_rebias, ne);
 
   // tmp_reg has the age, epoch and pattern bits cleared
@@ -2024,12 +2024,12 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
 #ifdef AARCH64
   // Bit mask biased_lock + age + epoch is not a valid AArch64 logical immediate, as it has
   // cleared bit in the middle (cms bit). So it is loaded with separate instruction.
-  mov(tmp2, (markOopDesc::biased_lock_mask_in_place | markOopDesc::age_mask_in_place | markOopDesc::epoch_mask_in_place));
+  mov(tmp2, (markOop::biased_lock_mask_in_place | markOop::age_mask_in_place | markOop::epoch_mask_in_place));
   andr(swap_reg, swap_reg, tmp2);
 #else
   // until the assembler can be made smarter, we need to make some assumptions about the values
   // so we can optimize this:
-  assert((markOopDesc::biased_lock_mask_in_place | markOopDesc::age_mask_in_place | markOopDesc::epoch_mask_in_place) == 0x1ff, "biased bitmasks changed");
+  assert((markOop::biased_lock_mask_in_place | markOop::age_mask_in_place | markOop::epoch_mask_in_place) == 0x1ff, "biased bitmasks changed");
 
   mov(swap_reg, AsmOperand(swap_reg, lsl, 23));
   mov(swap_reg, AsmOperand(swap_reg, lsr, 23)); // markOop with thread bits cleared (for CAS)
@@ -2062,7 +2062,7 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
 
   // owner bits 'random'. Set them to Rthread.
 #ifdef AARCH64
-  mov(tmp2, (markOopDesc::biased_lock_mask_in_place | markOopDesc::age_mask_in_place | markOopDesc::epoch_mask_in_place));
+  mov(tmp2, (markOop::biased_lock_mask_in_place | markOop::age_mask_in_place | markOop::epoch_mask_in_place));
   andr(tmp_reg, tmp_reg, tmp2);
 #else
   mov(tmp_reg, AsmOperand(tmp_reg, lsl, 23));
@@ -2097,7 +2097,7 @@ int MacroAssembler::biased_locking_enter(Register obj_reg, Register swap_reg, Re
 
   // owner bits 'random'. Clear them
 #ifdef AARCH64
-  mov(tmp2, (markOopDesc::biased_lock_mask_in_place | markOopDesc::age_mask_in_place | markOopDesc::epoch_mask_in_place));
+  mov(tmp2, (markOop::biased_lock_mask_in_place | markOop::age_mask_in_place | markOop::epoch_mask_in_place));
   andr(tmp_reg, tmp_reg, tmp2);
 #else
   mov(tmp_reg, AsmOperand(tmp_reg, lsl, 23));
@@ -2128,8 +2128,8 @@ void MacroAssembler::biased_locking_exit(Register obj_reg, Register tmp_reg, Lab
   // the bias bit would be clear.
   ldr(tmp_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
 
-  andr(tmp_reg, tmp_reg, (uintx)markOopDesc::biased_lock_mask_in_place);
-  cmp(tmp_reg, markOopDesc::biased_lock_pattern);
+  andr(tmp_reg, tmp_reg, (uintx)markOop::biased_lock_mask_in_place);
+  cmp(tmp_reg, markOop::biased_lock_pattern);
   b(done, eq);
 }
 
@@ -3018,7 +3018,7 @@ void MacroAssembler::fast_lock(Register Roop, Register Rbox, Register Rscratch, 
   // Invariant: Rmark loaded below does not contain biased lock pattern
 
   ldr(Rmark, Address(Roop, oopDesc::mark_offset_in_bytes()));
-  tst(Rmark, markOopDesc::unlocked_value);
+  tst(Rmark, markOop::unlocked_value);
   b(fast_lock, ne);
 
   // Check for recursive lock

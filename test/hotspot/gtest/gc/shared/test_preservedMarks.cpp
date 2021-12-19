@@ -45,11 +45,11 @@ public:
   markOop mark() { return _oop.mark_raw(); }
   void set_mark(markOop m) { _oop.set_mark_raw(m); }
   void forward_to(oop obj) {
-    markOop m = markOopDesc::encode_pointer_as_mark(obj);
+    markOop m = markOop::encode_pointer_as_mark(obj);
     _oop.set_mark_raw(m);
   }
 
-  static markOop originalMark() { return markOop(markOopDesc::lock_mask_in_place); }
+  static markOop originalMark() { return markOop(markOop::lock_mask_in_place); }
   static markOop changedMark()  { return markOop(0x4711); }
 };
 

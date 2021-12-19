@@ -42,8 +42,8 @@ template <class T> void G1ParScanThreadState::do_oop_evac(T* p) {
   const InCSetState in_cset_state = _g1h->in_cset_state(obj);
   if (in_cset_state.is_in_cset()) {
     markOop m = obj->mark_raw();
-    if (m->is_marked()) {
-      obj = (oop) m->decode_pointer();
+    if (m.is_marked()) {
+      obj = (oop) m.decode_pointer();
     } else {
       obj = copy_to_survivor_space(in_cset_state, obj, m);
     }

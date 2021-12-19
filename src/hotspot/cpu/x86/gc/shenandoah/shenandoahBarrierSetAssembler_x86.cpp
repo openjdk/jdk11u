@@ -653,7 +653,7 @@ void ShenandoahBarrierSetAssembler::cmpxchg_oop(MacroAssembler* masm,
 
   // Decode offending in-memory value.
   // Test if-forwarded
-  __ testb(Address(tmp2, oopDesc::mark_offset_in_bytes()), markOopDesc::marked_value);
+  __ testb(Address(tmp2, oopDesc::mark_offset_in_bytes()), markOop::marked_value);
   __ jcc(Assembler::noParity, L_failure);  // When odd number of bits, then not forwarded
   __ jcc(Assembler::zero, L_failure);      // When it is 00, then also not forwarded
 

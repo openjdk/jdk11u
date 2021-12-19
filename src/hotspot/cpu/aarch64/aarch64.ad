@@ -3402,11 +3402,11 @@ encode %{
 
     // Check for existing monitor
     if ((EmitSync & 0x02) == 0) {
-      __ tbnz(disp_hdr, exact_log2(markOopDesc::monitor_value), object_has_monitor);
+      __ tbnz(disp_hdr, exact_log2(markOop::monitor_value), object_has_monitor);
     }
 
     // Set tmp to be (markOop of object | UNLOCK_VALUE).
-    __ orr(tmp, disp_hdr, markOopDesc::unlocked_value);
+    __ orr(tmp, disp_hdr, markOop::unlocked_value);
 
     // Initialize the box. (Must happen before we update the object mark!)
     __ str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
@@ -3430,7 +3430,7 @@ encode %{
     // markOop of object (disp_hdr) with the stack pointer.
     __ mov(rscratch1, sp);
     __ sub(disp_hdr, disp_hdr, rscratch1);
-    __ mov(tmp, (address) (~(os::vm_page_size()-1) | (uintptr_t)markOopDesc::lock_mask_in_place));
+    __ mov(tmp, (address) (~(os::vm_page_size()-1) | (uintptr_t)markOop::lock_mask_in_place));
     // If condition is true we are cont and hence we can store 0 as the
     // displaced header in the box, which indicates that it is a recursive lock.
     __ ands(tmp/*==0?*/, disp_hdr, tmp);   // Sets flags for result
@@ -3445,15 +3445,15 @@ encode %{
       // otherwise m->owner may contain a thread or a stack address.
       //
       // Try to CAS m->owner from NULL to current thread.
-      __ add(tmp, disp_hdr, (ObjectMonitor::owner_offset_in_bytes()-markOopDesc::monitor_value));
+      __ add(tmp, disp_hdr, (ObjectMonitor::owner_offset_in_bytes()-markOop::monitor_value));
     __ cmpxchg(tmp, zr, rthread, Assembler::xword, /*acquire*/ true,
                /*release*/ true, /*weak*/ false, noreg); // Sets flags for result
 
       // Store a non-null value into the box to avoid looking like a re-entrant
       // lock. The fast-path monitor unlock code checks for
-      // markOopDesc::monitor_value so use markOopDesc::unused_mark which has the
+      // markOop::monitor_value so use markOop::unused_mark which has the
       // relevant bit set, and also matches ObjectSynchronizer::slow_enter.
-      __ mov(tmp, (address)markOopDesc::unused_mark());
+      __ mov(tmp, (address)markOop::unused_mark());
       __ str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
     }
 
@@ -3493,7 +3493,7 @@ encode %{
     // Handle existing monitor.
     if ((EmitSync & 0x02) == 0) {
       __ ldr(tmp, Address(oop, oopDesc::mark_offset_in_bytes()));
-      __ tbnz(disp_hdr, exact_log2(markOopDesc::monitor_value), object_has_monitor);
+      __ tbnz(disp_hdr, exact_log2(markOop::monitor_value), object_has_monitor);
     }
 
     // Check if it is still a light weight lock, this is is true if we
@@ -3509,7 +3509,7 @@ encode %{
     // Handle existing monitor.
     if ((EmitSync & 0x02) == 0) {
       __ bind(object_has_monitor);
-      __ add(tmp, tmp, -markOopDesc::monitor_value); // monitor
+      __ add(tmp, tmp, -markOop::monitor_value); // monitor
       __ ldr(rscratch1, Address(tmp, ObjectMonitor::owner_offset_in_bytes()));
       __ ldr(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset_in_bytes()));
       __ eor(rscratch1, rscratch1, rthread); // Will be 0 if we are the owner.

@@ -1212,7 +1212,7 @@ void InterpreterMacroAssembler::lock_object(Register lock_reg, Register Object) 
     // (cas clobbers the destination register)
     mov(lock_reg, temp_reg);
     // set mark reg to be (markOop of object | UNLOCK_VALUE)
-    or3(mark_reg, markOopDesc::unlocked_value, mark_reg);
+    or3(mark_reg, markOop::unlocked_value, mark_reg);
     // initialize the box  (Must happen before we update the object mark!)
     st_ptr(mark_reg, lock_addr, BasicLock::displaced_header_offset_in_bytes());
     // compare and exchange object_addr, markOop | 1, stack address of basicLock
@@ -1234,7 +1234,7 @@ void InterpreterMacroAssembler::lock_object(Register lock_reg, Register Object) 
     // (a) %sp -vs- markword proximity check, and,
     // (b) verify mark word LSBs == 0 (Stack-locked).
     //
-    // FFFFF003/FFFFFFFFFFFF003 is (markOopDesc::lock_mask_in_place | -os::vm_page_size())
+    // FFFFF003/FFFFFFFFFFFF003 is (markOop::lock_mask_in_place | -os::vm_page_size())
     // Note that the page size used for %sp proximity testing is arbitrary and is
     // unrelated to the actual MMU page size.  We use a 'logical' page size of
     // 4096 bytes.   F..FFF003 is designed to fit conveniently in the SIMM13 immediate

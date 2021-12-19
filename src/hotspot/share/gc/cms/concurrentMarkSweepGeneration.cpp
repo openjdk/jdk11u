@@ -7755,10 +7755,10 @@ bool CMSCollector::take_from_overflow_list(size_t num, CMSMarkStack* stack) {
   assert(stack->capacity() > num, "Shouldn't bite more than can chew");
   size_t i = num;
   oop  cur = _overflow_list;
-  const markOop proto = markOopDesc::prototype();
+  const markOop proto = markOop::prototype();
   NOT_PRODUCT(ssize_t n = 0;)
   for (oop next; i > 0 && cur != NULL; cur = next, i--) {
-    next = oop(cur->mark_raw());
+    next = oop(cur->mark_raw().to_pointer());
     cur->set_mark_raw(proto);   // until proven otherwise
     assert(oopDesc::is_oop(cur), "Should be an oop");
     bool res = stack->push(cur);
@@ -7842,8 +7842,8 @@ bool CMSCollector::par_take_from_overflow_list(size_t num,
   size_t i = num;
   oop cur = prefix;
   // Walk down the first "num" objects, unless we reach the end.
-  for (; i > 1 && cur->mark_raw() != NULL; cur = oop(cur->mark_raw()), i--);
-  if (cur->mark_raw() == NULL) {
+  for (; i > 1 && cur->mark_raw().to_pointer() != NULL; cur = oop(cur->mark_raw().to_pointer()), i--);
+  if (cur->mark_raw().to_pointer() == NULL) {
     // We have "num" or fewer elements in the list, so there
     // is nothing to return to the global list.
     // Write back the NULL in lieu of the BUSY we wrote
@@ -7853,9 +7853,9 @@ bool CMSCollector::par_take_from_overflow_list(size_t num,
     }
   } else {
     // Chop off the suffix and return it to the global list.
-    assert(cur->mark_raw() != BUSY, "Error");
-    oop suffix_head = cur->mark_raw(); // suffix will be put back on global list
-    cur->set_mark_raw(NULL);           // break off suffix
+    assert(cur->mark_raw().to_pointer() != (void*)BUSY, "Error");
+    oop suffix_head = oop(cur->mark_raw().to_pointer()); // suffix will be put back on global list
+    cur->set_mark_raw(markOop::from_pointer(NULL));           // break off suffix
     // It's possible that the list is still in the empty(busy) state
     // we left it in a short while ago; in that case we may be
     // able to place back the suffix without incurring the cost
@@ -7875,18 +7875,18 @@ bool CMSCollector::par_take_from_overflow_list(size_t num,
       // Too bad, someone else sneaked in (at least) an element; we'll need
       // to do a splice. Find tail of suffix so we can prepend suffix to global
       // list.
-      for (cur = suffix_head; cur->mark_raw() != NULL; cur = (oop)(cur->mark_raw()));
+      for (cur = suffix_head; cur->mark_raw().to_pointer() != NULL; cur = (oop)(cur->mark_raw().to_pointer()));
       oop suffix_tail = cur;
-      assert(suffix_tail != NULL && suffix_tail->mark_raw() == NULL,
+      assert(suffix_tail != NULL && suffix_tail->mark_raw().to_pointer() == NULL,
              "Tautology");
       observed_overflow_list = _overflow_list;
       do {
         cur_overflow_list = observed_overflow_list;
         if (cur_overflow_list != BUSY) {
           // Do the splice ...
-          suffix_tail->set_mark_raw(markOop(cur_overflow_list));
+          suffix_tail->set_mark_raw(markOop::from_pointer((void*)cur_overflow_list));
         } else { // cur_overflow_list == BUSY
-          suffix_tail->set_mark_raw(NULL);
+          suffix_tail->set_mark_raw(markOop::from_pointer(NULL));
         }
         // ... and try to place spliced list back on overflow_list ...
         observed_overflow_list =
@@ -7898,11 +7898,11 @@ bool CMSCollector::par_take_from_overflow_list(size_t num,
 
   // Push the prefix elements on work_q
   assert(prefix != NULL, "control point invariant");
-  const markOop proto = markOopDesc::prototype();
+  const markOop proto = markOop::prototype();
   oop next;
   NOT_PRODUCT(ssize_t n = 0;)
   for (cur = prefix; cur != NULL; cur = next) {
-    next = oop(cur->mark_raw());
+    next = oop(cur->mark_raw().to_pointer());
     cur->set_mark_raw(proto);   // until proven otherwise
     assert(oopDesc::is_oop(cur), "Should be an oop");
     bool res = work_q->push(cur);
@@ -7921,7 +7921,7 @@ void CMSCollector::push_on_overflow_list(oop p) {
   NOT_PRODUCT(_num_par_pushes++;)
   assert(oopDesc::is_oop(p), "Not an oop");
   preserve_mark_if_necessary(p);
-  p->set_mark_raw((markOop)_overflow_list);
+  p->set_mark_raw(markOop::from_pointer(_overflow_list));
   _overflow_list = p;
 }
 
@@ -7935,9 +7935,9 @@ void CMSCollector::par_push_on_overflow_list(oop p) {
   do {
     cur_overflow_list = observed_overflow_list;
     if (cur_overflow_list != BUSY) {
-      p->set_mark_raw(markOop(cur_overflow_list));
+      p->set_mark_raw(markOop::from_pointer((void*)cur_overflow_list));
     } else {
-      p->set_mark_raw(NULL);
+      p->set_mark_raw(markOop::from_pointer(NULL));
     }
     observed_overflow_list =
       Atomic::cmpxchg((oopDesc*)p, &_overflow_list, (oopDesc*)cur_overflow_list);
@@ -7970,14 +7970,14 @@ void CMSCollector::preserve_mark_work(oop p, markOop m) {
 // Single threaded
 void CMSCollector::preserve_mark_if_necessary(oop p) {
   markOop m = p->mark_raw();
-  if (m->must_be_preserved(p)) {
+  if (m.must_be_preserved(p)) {
     preserve_mark_work(p, m);
   }
 }
 
 void CMSCollector::par_preserve_mark_if_necessary(oop p) {
   markOop m = p->mark_raw();
-  if (m->must_be_preserved(p)) {
+  if (m.must_be_preserved(p)) {
     MutexLockerEx x(ParGCRareEvent_lock, Mutex::_no_safepoint_check_flag);
     // Even though we read the mark word without holding
     // the lock, we are assured that it will not change
@@ -8017,7 +8017,7 @@ void CMSCollector::restore_preserved_marks_if_any() {
     oop p = _preserved_oop_stack.pop();
     assert(oopDesc::is_oop(p), "Should be an oop");
     assert(_span.contains(p), "oop should be in _span");
-    assert(p->mark_raw() == markOopDesc::prototype(),
+    assert(p->mark_raw() == markOop::prototype(),
            "Set when taken from overflow list");
     markOop m = _preserved_mark_stack.pop();
     p->set_mark_raw(m);

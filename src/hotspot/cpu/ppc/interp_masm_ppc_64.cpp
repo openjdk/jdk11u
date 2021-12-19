@@ -901,7 +901,7 @@ void InterpreterMacroAssembler::lock_object(Register monitor, Register object) {
     }
 
     // Set displaced_header to be (markOop of object | UNLOCK_VALUE).
-    ori(displaced_header, displaced_header, markOopDesc::unlocked_value);
+    ori(displaced_header, displaced_header, markOop::unlocked_value);
 
     // monitor->lock()->set_displaced_header(displaced_header);
 
@@ -942,7 +942,7 @@ void InterpreterMacroAssembler::lock_object(Register monitor, Register object) {
     sub(current_header, current_header, R1_SP);
 
     assert(os::vm_page_size() > 0xfff, "page size too small - change the constant");
-    load_const_optimized(tmp, ~(os::vm_page_size()-1) | markOopDesc::lock_mask_in_place);
+    load_const_optimized(tmp, ~(os::vm_page_size()-1) | markOop::lock_mask_in_place);
 
     and_(R0/*==0?*/, current_header, tmp);
     // If condition is true we are done and hence we can store 0 in the displaced

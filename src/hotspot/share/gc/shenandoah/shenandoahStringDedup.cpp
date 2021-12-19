@@ -50,14 +50,14 @@ void ShenandoahStringDedup::enqueue_candidate(oop java_string) {
     const markOop mark = java_string->mark();
 
     // Having/had displaced header, too risk to deal with them, skip
-    if (mark == markOopDesc::INFLATING() || mark->has_displaced_mark_helper()) {
+    if (mark == markOop::INFLATING() || mark.has_displaced_mark_helper()) {
       return;
     }
 
     // Increase string age and enqueue it when it rearches age threshold
-    markOop new_mark = mark->incr_age();
+    markOop new_mark = mark.incr_age();
     if (mark == java_string->cas_set_mark(new_mark, mark)) {
-      if (mark->age() == StringDeduplicationAgeThreshold) {
+      if (mark.age() == StringDeduplicationAgeThreshold) {
         StringDedupQueue::push(ShenandoahWorkerSession::worker_id(), java_string);
       }
     }

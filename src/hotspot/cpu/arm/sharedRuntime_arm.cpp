@@ -1228,22 +1228,22 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
 
     __ ldr(Rtemp, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
 
-    assert(markOopDesc::unlocked_value == 1, "adjust this code");
-    __ tbz(Rtemp, exact_log2(markOopDesc::unlocked_value), slow_case);
+    assert(markOop::unlocked_value == 1, "adjust this code");
+    __ tbz(Rtemp, exact_log2(markOop::unlocked_value), slow_case);
 
     if (UseBiasedLocking) {
-      assert(is_power_of_2(markOopDesc::biased_lock_bit_in_place), "adjust this code");
-      __ tbnz(Rtemp, exact_log2(markOopDesc::biased_lock_bit_in_place), slow_case);
+      assert(is_power_of_2(markOop::biased_lock_bit_in_place), "adjust this code");
+      __ tbnz(Rtemp, exact_log2(markOop::biased_lock_bit_in_place), slow_case);
     }
 
 #ifdef AARCH64
-    __ ands(Rtemp, Rtemp, (uintx)markOopDesc::hash_mask_in_place);
+    __ ands(Rtemp, Rtemp, (uintx)markOop::hash_mask_in_place);
     __ b(slow_case, eq);
-    __ logical_shift_right(R0, Rtemp, markOopDesc::hash_shift);
+    __ logical_shift_right(R0, Rtemp, markOop::hash_shift);
     __ ret();
 #else
-    __ bics(Rtemp, Rtemp, ~markOopDesc::hash_mask_in_place);
-    __ mov(R0, AsmOperand(Rtemp, lsr, markOopDesc::hash_shift), ne);
+    __ bics(Rtemp, Rtemp, ~markOop::hash_mask_in_place);
+    __ mov(R0, AsmOperand(Rtemp, lsr, markOop::hash_shift), ne);
     __ bx(LR, ne);
 #endif // AARCH64
 
@@ -1583,8 +1583,8 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
     __ ldr(mark, sync_obj);
 
     // Test if object is already locked
-    assert(markOopDesc::unlocked_value == 1, "adjust this code");
-    __ tbnz(mark, exact_log2(markOopDesc::unlocked_value), fast_lock);
+    assert(markOop::unlocked_value == 1, "adjust this code");
+    __ tbnz(mark, exact_log2(markOop::unlocked_value), fast_lock);
 
     // Check for recursive lock
     // See comments in InterpreterMacroAssembler::lock_object for
@@ -1610,7 +1610,7 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
 
     __ ldr(mark, Address(sync_obj, oopDesc::mark_offset_in_bytes()));
     __ sub(disp_hdr, FP, lock_slot_fp_offset);
-    __ tst(mark, markOopDesc::unlocked_value);
+    __ tst(mark, markOop::unlocked_value);
     __ b(fast_lock, ne);
 
     // Check for recursive lock

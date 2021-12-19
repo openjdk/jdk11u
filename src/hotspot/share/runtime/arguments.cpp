@@ -2879,7 +2879,7 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
       if (FLAG_SET_CMDLINE(bool, AlwaysTenure, false) != JVMFlag::SUCCESS) {
         return JNI_EINVAL;
       }
-      if (FLAG_SET_CMDLINE(uintx, MaxTenuringThreshold, markOopDesc::max_age + 1) != JVMFlag::SUCCESS) {
+      if (FLAG_SET_CMDLINE(uintx, MaxTenuringThreshold, markOop::max_age + 1) != JVMFlag::SUCCESS) {
         return JNI_EINVAL;
       }
     } else if (match_option(option, "-XX:+AlwaysTenure")) {

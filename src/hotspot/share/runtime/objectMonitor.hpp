@@ -27,6 +27,7 @@
 
 #include "memory/allocation.hpp"
 #include "memory/padded.hpp"
+#include "oops/markOop.hpp"
 #include "runtime/os.hpp"
 #include "runtime/park.hpp"
 #include "runtime/perfData.hpp"
@@ -218,7 +219,7 @@ class ObjectMonitor {
   static int succ_offset_in_bytes()        { return offset_of(ObjectMonitor, _succ); }
   static int EntryList_offset_in_bytes()   { return offset_of(ObjectMonitor, _EntryList); }
 
-  // ObjectMonitor references can be ORed with markOopDesc::monitor_value
+  // ObjectMonitor references can be ORed with markOop::monitor_value
   // as part of the ObjectMonitor tagging mechanism. When we combine an
   // ObjectMonitor reference with an offset, we need to remove the tag
   // value in order to generate the proper address.
@@ -230,7 +231,7 @@ class ObjectMonitor {
   // to the ObjectMonitor reference manipulation code:
   //
   #define OM_OFFSET_NO_MONITOR_VALUE_TAG(f) \
-    ((ObjectMonitor::f ## _offset_in_bytes()) - markOopDesc::monitor_value)
+    ((ObjectMonitor::f ## _offset_in_bytes()) - markOop::monitor_value)
 
   markOop   header() const;
   volatile markOop* header_addr();

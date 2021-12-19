@@ -27,7 +27,7 @@
 #include "runtime/thread.inline.hpp"
 #include "runtime/objectMonitor.inline.hpp"
 
-void markOopDesc::print_on(outputStream* st) const {
+void markOop::print_on(outputStream* st) const {
   if (is_marked()) {
     st->print(" marked(" INTPTR_FORMAT ")", value());
   } else if (has_monitor()) {
