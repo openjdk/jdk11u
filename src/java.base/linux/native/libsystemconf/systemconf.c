@@ -131,11 +131,13 @@ JNIEXPORT jboolean JNICALL Java_java_security_SystemConfigurator_getSystemFIPSEn
     dbgPrint(env, "getSystemFIPSEnabled: reading " FIPS_ENABLED_PATH);
     if ((fe = fopen(FIPS_ENABLED_PATH, "r")) == NULL) {
         throwIOException(env, "Cannot open " FIPS_ENABLED_PATH);
+        return JNI_FALSE;
     }
     fips_enabled = fgetc(fe);
     fclose(fe);
     if (fips_enabled == EOF) {
         throwIOException(env, "Cannot read " FIPS_ENABLED_PATH);
+        return JNI_FALSE;
     }
     msg_bytes = snprintf(msg, MSG_MAX_SIZE, "getSystemFIPSEnabled:" \
             " read character is '%c'", fips_enabled);
