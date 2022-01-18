@@ -76,7 +76,7 @@ final class SystemConfigurator {
      * java.security.disableSystemPropertiesFile property is not set and
      * security.useSystemPropertiesFile is true.
      */
-    static boolean configure(Properties props) {
+    static boolean configureSysProps(Properties props) {
         boolean loadedProps = false;
 
         try (BufferedInputStream bis =
@@ -96,11 +96,19 @@ final class SystemConfigurator {
                 e.printStackTrace();
             }
         }
+        return loadedProps;
+    }
+
+    /*
+     * Invoked at the end of java.security.Security initialisation
+     * if java.security properties have been loaded
+     */
+    static boolean configureFIPS(Properties props) {
+        boolean loadedProps = false;
 
         try {
             if (enableFips()) {
                 if (sdebug != null) { sdebug.println("FIPS mode detected"); }
-                loadedProps = false;
                 // Remove all security providers
                 Iterator<Entry<Object, Object>> i = props.entrySet().iterator();
                 while (i.hasNext()) {

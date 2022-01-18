@@ -61,10 +61,6 @@ public final class Security {
     private static final Debug sdebug =
                         Debug.getInstance("properties");
 
-    /* System property file*/
-    private static final String SYSTEM_PROPERTIES =
-        "/etc/crypto-policies/back-ends/java.config";
-
     /* The java.security properties */
     private static Properties props;
 
@@ -206,14 +202,6 @@ public final class Security {
             }
         }
 
-        String disableSystemProps = System.getProperty("java.security.disableSystemPropertiesFile");
-        if ((disableSystemProps == null || "false".equalsIgnoreCase(disableSystemProps)) &&
-            "true".equalsIgnoreCase(props.getProperty("security.useSystemPropertiesFile"))) {
-            if (SystemConfigurator.configure(props)) {
-                loadedProps = true;
-            }
-        }
-
         if (!loadedProps) {
             initializeStatic();
             if (sdebug != null) {
@@ -222,6 +210,28 @@ public final class Security {
             }
         }
 
+        String disableSystemProps = System.getProperty("java.security.disableSystemPropertiesFile");
+        if ((disableSystemProps == null || "false".equalsIgnoreCase(disableSystemProps)) &&
+            "true".equalsIgnoreCase(props.getProperty("security.useSystemPropertiesFile"))) {
+            if (!SystemConfigurator.configureSysProps(props)) {
+                if (sdebug != null) {
+                    sdebug.println("WARNING: System properties could not be loaded.");
+                }
+            }
+        }
+
+        // FIPS support depends on the contents of java.security so
+        // ensure it has loaded first
+        if (loadedProps) {
+            boolean fipsEnabled = SystemConfigurator.configureFIPS(props);
+            if (sdebug != null) {
+                if (fipsEnabled) {
+                    sdebug.println("FIPS support enabled.");
+                } else {
+                    sdebug.println("FIPS support disabled.");
+                }
+            }
+        }
     }
 
     /*
