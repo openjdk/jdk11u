@@ -23,25 +23,99 @@
  * questions.
  */
 
-#include <dlfcn.h>
 #include <jni.h>
 #include <jni_util.h>
+#include "jvm_md.h"
 #include <stdio.h>
 
 #ifdef SYSCONF_NSS
 #include <nss3/pk11pub.h>
+#else
+#include <dlfcn.h>
 #endif //SYSCONF_NSS
 
 #include "java_security_SystemConfigurator.h"
 
+#define MSG_MAX_SIZE 256
 #define FIPS_ENABLED_PATH "/proc/sys/crypto/fips_enabled"
-#define MSG_MAX_SIZE 96
 
+typedef int (SECMOD_GET_SYSTEM_FIPS_ENABLED_TYPE)(void);
+
+static SECMOD_GET_SYSTEM_FIPS_ENABLED_TYPE *getSystemFIPSEnabled;
 static jmethodID debugPrintlnMethodID = NULL;
 static jobject debugObj = NULL;
 
-static void throwIOException(JNIEnv *env, const char *msg);
-static void dbgPrint(JNIEnv *env, const char* msg);
+static void dbgPrint(JNIEnv *env, const char* msg)
+{
+    jstring jMsg;
+    if (debugObj != NULL) {
+        jMsg = (*env)->NewStringUTF(env, msg);
+        CHECK_NULL(jMsg);
+        (*env)->CallVoidMethod(env, debugObj, debugPrintlnMethodID, jMsg);
+    }
+}
+
+static void throwIOException(JNIEnv *env, const char *msg)
+{
+    jclass cls = (*env)->FindClass(env, "java/io/IOException");
+    if (cls != 0)
+        (*env)->ThrowNew(env, cls, msg);
+}
+
+static void handle_msg(JNIEnv *env, const char* msg, int msg_bytes)
+{
+  if (msg_bytes > 0 && msg_bytes < MSG_MAX_SIZE) {
+    dbgPrint(env, msg);
+  } else {
+    dbgPrint(env, "systemconf: cannot render message");
+  }
+}
+
+// Only used when NSS is not linked at build time
+#ifndef SYSCONF_NSS
+
+static void *nss_handle;
+
+static jboolean loadNSS(JNIEnv *env)
+{
+  char msg[MSG_MAX_SIZE];
+  int msg_bytes;
+  const char* errmsg;
+
+  nss_handle = dlopen(JNI_LIB_NAME("nss3"), RTLD_LAZY);
+  if (nss_handle == NULL) {
+    errmsg = dlerror();
+    msg_bytes = snprintf(msg, MSG_MAX_SIZE, "loadNSS: dlopen: %s\n",
+                         errmsg);
+    handle_msg(env, msg, msg_bytes);
+    return JNI_FALSE;
+  }
+  dlerror(); /* Clear errors */
+  getSystemFIPSEnabled = (SECMOD_GET_SYSTEM_FIPS_ENABLED_TYPE*)dlsym(nss_handle, "SECMOD_GetSystemFIPSEnabled");
+  if ((errmsg = dlerror()) != NULL) {
+    msg_bytes = snprintf(msg, MSG_MAX_SIZE, "loadNSS: dlsym: %s\n",
+                         errmsg);
+    handle_msg(env, msg, msg_bytes);
+    return JNI_FALSE;
+  }
+  return JNI_TRUE;
+}
+
+static void closeNSS(JNIEnv *env)
+{
+  char msg[MSG_MAX_SIZE];
+  int msg_bytes;
+  const char* errmsg;
+
+  if (dlclose(nss_handle) != 0) {
+    errmsg = dlerror();
+    msg_bytes = snprintf(msg, MSG_MAX_SIZE, "closeNSS: dlclose: %s\n",
+                         errmsg);
+    handle_msg(env, msg, msg_bytes);
+  }
+}
+
+#endif
 
 /*
  * Class:     java_security_SystemConfigurator
@@ -84,6 +158,14 @@ JNIEXPORT jint JNICALL DEF_JNI_OnLoad(JavaVM *vm, void *reserved)
         debugObj = (*env)->NewGlobalRef(env, debugObj);
     }
 
+#ifdef SYSCONF_NSS
+    getSystemFIPSEnabled = *SECMOD_GetSystemFIPSEnabled;
+#else
+    if (loadNSS(env) == JNI_FALSE) {
+      dbgPrint(env, "libsystemconf: Failed to load NSS library.");
+    }
+#endif
+
     return (*env)->GetVersion(env);
 }
 
@@ -99,6 +181,9 @@ JNIEXPORT void JNICALL DEF_JNI_OnUnload(JavaVM *vm, void *reserved)
         if ((*vm)->GetEnv(vm, (void**) &env, JNI_VERSION_1_2) != JNI_OK) {
             return; /* Should not happen */
         }
+#ifndef SYSCONF_NSS
+        closeNSS(env);
+#endif
         (*env)->DeleteGlobalRef(env, debugObj);
     }
 }
@@ -110,61 +195,30 @@ JNIEXPORT jboolean JNICALL Java_java_security_SystemConfigurator_getSystemFIPSEn
     char msg[MSG_MAX_SIZE];
     int msg_bytes;
 
-#ifdef SYSCONF_NSS
-
-    dbgPrint(env, "getSystemFIPSEnabled: calling SECMOD_GetSystemFIPSEnabled");
-    fips_enabled = SECMOD_GetSystemFIPSEnabled();
-    msg_bytes = snprintf(msg, MSG_MAX_SIZE, "getSystemFIPSEnabled:" \
-            " SECMOD_GetSystemFIPSEnabled returned 0x%x", fips_enabled);
-    if (msg_bytes > 0 && msg_bytes < MSG_MAX_SIZE) {
-        dbgPrint(env, msg);
+    if (getSystemFIPSEnabled != NULL) {
+      dbgPrint(env, "getSystemFIPSEnabled: calling SECMOD_GetSystemFIPSEnabled");
+      fips_enabled = (*getSystemFIPSEnabled)();
+      msg_bytes = snprintf(msg, MSG_MAX_SIZE, "getSystemFIPSEnabled:"   \
+                           " SECMOD_GetSystemFIPSEnabled returned 0x%x", fips_enabled);
+      handle_msg(env, msg, msg_bytes);
+      return (fips_enabled == 1 ? JNI_TRUE : JNI_FALSE);
     } else {
-        dbgPrint(env, "getSystemFIPSEnabled: cannot render" \
-                " SECMOD_GetSystemFIPSEnabled return value");
-    }
-    return (fips_enabled == 1 ? JNI_TRUE : JNI_FALSE);
+      FILE *fe;
 
-#else // SYSCONF_NSS
-
-    FILE *fe;
-
-    dbgPrint(env, "getSystemFIPSEnabled: reading " FIPS_ENABLED_PATH);
-    if ((fe = fopen(FIPS_ENABLED_PATH, "r")) == NULL) {
+      dbgPrint(env, "getSystemFIPSEnabled: reading " FIPS_ENABLED_PATH);
+      if ((fe = fopen(FIPS_ENABLED_PATH, "r")) == NULL) {
         throwIOException(env, "Cannot open " FIPS_ENABLED_PATH);
         return JNI_FALSE;
-    }
-    fips_enabled = fgetc(fe);
-    fclose(fe);
-    if (fips_enabled == EOF) {
+      }
+      fips_enabled = fgetc(fe);
+      fclose(fe);
+      if (fips_enabled == EOF) {
         throwIOException(env, "Cannot read " FIPS_ENABLED_PATH);
         return JNI_FALSE;
-    }
-    msg_bytes = snprintf(msg, MSG_MAX_SIZE, "getSystemFIPSEnabled:" \
-            " read character is '%c'", fips_enabled);
-    if (msg_bytes > 0 && msg_bytes < MSG_MAX_SIZE) {
-        dbgPrint(env, msg);
-    } else {
-        dbgPrint(env, "getSystemFIPSEnabled: cannot render" \
-                " read character");
-    }
-    return (fips_enabled == '1' ? JNI_TRUE : JNI_FALSE);
-
-#endif // SYSCONF_NSS
-}
-
-static void throwIOException(JNIEnv *env, const char *msg)
-{
-    jclass cls = (*env)->FindClass(env, "java/io/IOException");
-    if (cls != 0)
-        (*env)->ThrowNew(env, cls, msg);
-}
-
-static void dbgPrint(JNIEnv *env, const char* msg)
-{
-    jstring jMsg;
-    if (debugObj != NULL) {
-        jMsg = (*env)->NewStringUTF(env, msg);
-        CHECK_NULL(jMsg);
-        (*env)->CallVoidMethod(env, debugObj, debugPrintlnMethodID, jMsg);
+      }
+      msg_bytes = snprintf(msg, MSG_MAX_SIZE, "getSystemFIPSEnabled:"   \
+                           " read character is '%c'", fips_enabled);
+      handle_msg(env, msg, msg_bytes);
+      return (fips_enabled == '1' ? JNI_TRUE : JNI_FALSE);
     }
 }
