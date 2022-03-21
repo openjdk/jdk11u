@@ -36,6 +36,7 @@ class LogFileOutput : public LogFileStreamOutput {
   static const char* const FileOpenMode;
   static const char* const FileCountOptionKey;
   static const char* const FileSizeOptionKey;
+  static const char* const PeriodOptionKey;
   static const char* const PidFilenamePlaceholder;
   static const char* const TimestampFilenamePlaceholder;
   static const char* const TimestampFormat;
@@ -60,6 +61,10 @@ class LogFileOutput : public LogFileStreamOutput {
   size_t  _rotate_size;
   size_t  _current_size;
 
+  bool   _update_next_rotate_time_ms;
+  jlong  _rotate_period_ms;
+  jlong  _next_rotate_time_ms;
+
   // Semaphore used for synchronizing file rotations and writes
   Semaphore _rotation_semaphore;
 
@@ -68,8 +73,13 @@ class LogFileOutput : public LogFileStreamOutput {
   bool parse_options(const char* options, outputStream* errstream);
   char *make_file_name(const char* file_name, const char* pid_string, const char* timestamp_string);
 
-  bool should_rotate() {
-    return _file_count > 0 && _rotate_size > 0 && _current_size >= _rotate_size;
+  bool check_rotate() {
+    bool do_rotate = _file_count > 0 && _rotate_size > 0 && _current_size >= _rotate_size;
+    if (_rotate_period_ms > 0 && !do_rotate && os::javaTimeMillis() >= _next_rotate_time_ms) {
+      do_rotate = true;
+      _update_next_rotate_time_ms = true;
+    }
+    return do_rotate;
   }
 
   void increment_file_count() {
@@ -77,6 +87,10 @@ class LogFileOutput : public LogFileStreamOutput {
     if (_current_file == _file_count) {
       _current_file = 0;
     }
+  }
+
+  void set_rotate_period_ms(jlong rotate_period_ms) {
+    _rotate_period_ms = rotate_period_ms;
   }
 
  public:
@@ -87,6 +101,7 @@ class LogFileOutput : public LogFileStreamOutput {
   virtual int write(LogMessageBuffer::Iterator msg_iterator);
   virtual void force_rotate();
   virtual void describe(outputStream* out);
+  void rotate_period_init(jlong vm_start_time);
 
   virtual const char* name() const {
     return _name;

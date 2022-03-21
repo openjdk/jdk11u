@@ -32,6 +32,11 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/defaultStream.hpp"
 
+#define MILLISECS_PER_MINUTE (jlong)60000
+#define MILLISECS_PER_HOUR (jlong)3600000
+#define MILLISECS_PER_DAY (jlong)86400000
+#define MILLISECS_PER_WEEK (jlong)604800000
+
 const char* const LogFileOutput::Prefix = "file=";
 const char* const LogFileOutput::FileOpenMode = "a";
 const char* const LogFileOutput::PidFilenamePlaceholder = "%p";
@@ -39,6 +44,7 @@ const char* const LogFileOutput::TimestampFilenamePlaceholder = "%t";
 const char* const LogFileOutput::TimestampFormat = "%Y-%m-%d_%H-%M-%S";
 const char* const LogFileOutput::FileSizeOptionKey = "filesize";
 const char* const LogFileOutput::FileCountOptionKey = "filecount";
+const char* const LogFileOutput::PeriodOptionKey = "period";
 char        LogFileOutput::_pid_str[PidBufferSize];
 char        LogFileOutput::_vm_start_time_str[StartTimeBufferSize];
 
@@ -46,9 +52,19 @@ LogFileOutput::LogFileOutput(const char* name)
     : LogFileStreamOutput(NULL), _name(os::strdup_check_oom(name, mtLogging)),
       _file_name(NULL), _archive_name(NULL), _archive_name_len(0),
       _rotate_size(DefaultFileSize), _file_count(DefaultFileCount), _is_default_file_count(true),
-      _current_size(0), _current_file(0), _rotation_semaphore(1) {
+      _current_size(0), _current_file(0), _rotation_semaphore(1), _rotate_period_ms(0),
+      _next_rotate_time_ms(0), _update_next_rotate_time_ms(true) {
   assert(strstr(name, Prefix) == name, "invalid output name '%s': missing prefix: %s", name, Prefix);
   _file_name = make_file_name(name + strlen(Prefix), _pid_str, _vm_start_time_str);
+}
+
+void LogFileOutput::rotate_period_init(jlong vm_start_time) {
+  // options should already be parsed
+  if (_rotate_period_ms > 0) {
+    _next_rotate_time_ms = vm_start_time + _rotate_period_ms;
+    _next_rotate_time_ms = _next_rotate_time_ms /
+	    _rotate_period_ms * _rotate_period_ms;
+  }
 }
 
 void LogFileOutput::set_file_name_parameters(jlong vm_start_time) {
@@ -207,6 +223,23 @@ bool LogFileOutput::parse_options(const char* options, outputStream* errstream) 
         break;
       }
       _rotate_size = static_cast<size_t>(value);
+    } else if (strcmp(PeriodOptionKey, key) == 0) {
+      if (strcmp(value_str, "off") == 0) {
+        set_rotate_period_ms(0);
+      } else if (strcmp(value_str, "minute") == 0) {
+        set_rotate_period_ms(MILLISECS_PER_MINUTE);
+      } else if (strcmp(value_str, "hour") == 0) {
+        set_rotate_period_ms(MILLISECS_PER_HOUR);
+      } else if (strcmp(value_str, "day") == 0) {
+        set_rotate_period_ms(MILLISECS_PER_DAY);
+      } else if (strcmp(value_str, "week") == 0) {
+        set_rotate_period_ms(MILLISECS_PER_WEEK);
+      } else {
+        errstream->print_cr("Invalid option: %s, the value of period must be "
+            "amoung of [off|minute|hour|day|week]", PeriodOptionKey);
+        success = false;
+        break;
+      }
     } else {
       errstream->print_cr("Invalid option '%s' for log file output.", key);
       success = false;
@@ -272,6 +305,8 @@ bool LogFileOutput::initialize(const char* options, outputStream* errstream) {
     os::ftruncate(os::get_fileno(_stream), 0);
   }
 
+  rotate_period_init(os::javaTimeMillis());
+
   return true;
 }
 
@@ -285,9 +320,10 @@ int LogFileOutput::write(const LogDecorations& decorations, const char* msg) {
   int written = LogFileStreamOutput::write(decorations, msg);
   _current_size += written;
 
-  if (should_rotate()) {
+  if (check_rotate()) {
     rotate();
   }
+
   _rotation_semaphore.signal();
 
   return written;
@@ -303,7 +339,7 @@ int LogFileOutput::write(LogMessageBuffer::Iterator msg_iterator) {
   int written = LogFileStreamOutput::write(msg_iterator);
   _current_size += written;
 
-  if (should_rotate()) {
+  if (check_rotate()) {
     rotate();
   }
   _rotation_semaphore.signal();
@@ -356,8 +392,12 @@ void LogFileOutput::rotate() {
     return;
   }
 
-  // Reset accumulated size, increase current file counter, and check for file count wrap-around.
+  // Update next rotate time, reset accumulated size, increase current file counter, and check for file count wrap-around.
   _current_size = 0;
+  if (_rotate_period_ms > 0 && _update_next_rotate_time_ms) {
+    _update_next_rotate_time_ms = false;
+    _next_rotate_time_ms += _rotate_period_ms;
+  }
   increment_file_count();
 }
 
