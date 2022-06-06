@@ -5,7 +5,7 @@ on:
     branches-ignore:
       - master
       - pr/*
-  workflow_dispatch:
+  pull_request:
     inputs:
       platforms:
         description: "Platform(s) to execute on"
