@@ -149,6 +149,17 @@ public class PKCS11 {
         this.pkcs11ModulePath = pkcs11ModulePath;
     }
 
+    /*
+     * Compatibility wrapper to allow this method to work as before
+     * when FIPS mode support is not active.
+     */
+    public static synchronized PKCS11 getInstance(String pkcs11ModulePath,
+           String functionList, CK_C_INITIALIZE_ARGS pInitArgs,
+           boolean omitInitialize) throws IOException, PKCS11Exception {
+        return getInstance(pkcs11ModulePath, functionList,
+                           pInitArgs, omitInitialize, null);
+    }
+
     public static synchronized PKCS11 getInstance(String pkcs11ModulePath,
             String functionList, CK_C_INITIALIZE_ARGS pInitArgs,
             boolean omitInitialize, MethodHandle fipsKeyImporter)
