@@ -384,6 +384,167 @@ jobs:
           path: ~/linux-x64${{ matrix.artifact }}_testsupport_${{ env.logsuffix }}.zip
         continue-on-error: true
 
+  linux_x64_test_fips:
+    name: Linux x64 + FIPS
+    runs-on: "ubuntu-20.04"
+    needs:
+      - prerequisites
+      - linux_x64_build
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - jdk/tier1 part 1
+          - jdk/tier1 part 2
+          - jdk/tier1 part 3
+        include:
+          - test: jdk/tier1 part 1
+            suites: test/jdk/:tier1_part1
+          - test: jdk/tier1 part 2
+            suites: test/jdk/:tier1_part2
+          - test: jdk/tier1 part 3
+            suites: test/jdk/:tier1_part3
+
+    env:
+      JDK_VERSION: "${{ fromJson(needs.prerequisites.outputs.dependencies).DEFAULT_VERSION_FEATURE }}.${{ fromJson(needs.prerequisites.outputs.dependencies).DEFAULT_VERSION_INTERIM }}.${{ fromJson(needs.prerequisites.outputs.dependencies).DEFAULT_VERSION_UPDATE }}"
+      BOOT_JDK_VERSION: "${{ fromJson(needs.prerequisites.outputs.dependencies).BOOT_JDK_VERSION }}"
+      BOOT_JDK_FILENAME: "${{ fromJson(needs.prerequisites.outputs.dependencies).LINUX_X64_BOOT_JDK_FILENAME }}"
+      BOOT_JDK_URL: "${{ fromJson(needs.prerequisites.outputs.dependencies).LINUX_X64_BOOT_JDK_URL }}"
+      BOOT_JDK_SHA256: "${{ fromJson(needs.prerequisites.outputs.dependencies).LINUX_X64_BOOT_JDK_SHA256 }}"
+
+    steps:
+      - name: Checkout the source
+        uses: actions/checkout@v2
+
+      - name: Restore boot JDK from cache
+        id: bootjdk
+        uses: actions/cache@v2
+        with:
+          path: ~/bootjdk/${{ env.BOOT_JDK_VERSION }}
+          key: bootjdk-${{ runner.os }}-${{ env.BOOT_JDK_VERSION }}-${{ env.BOOT_JDK_SHA256 }}-v1
+
+      - name: Download boot JDK
+        run: |
+          mkdir -p "${HOME}/bootjdk/${BOOT_JDK_VERSION}"
+          wget -O "${HOME}/bootjdk/${BOOT_JDK_FILENAME}" "${BOOT_JDK_URL}"
+          echo "${BOOT_JDK_SHA256} ${HOME}/bootjdk/${BOOT_JDK_FILENAME}" | sha256sum -c >/dev/null -
+          tar -xf "${HOME}/bootjdk/${BOOT_JDK_FILENAME}" -C "${HOME}/bootjdk/${BOOT_JDK_VERSION}"
+          mv "${HOME}/bootjdk/${BOOT_JDK_VERSION}/"*/* "${HOME}/bootjdk/${BOOT_JDK_VERSION}/"
+        if: steps.bootjdk.outputs.cache-hit != 'true'
+
+      - name: Restore jtreg artifact
+        id: jtreg_restore
+        uses: actions/download-artifact@v2
+        with:
+          name: transient_jtreg_${{ needs.prerequisites.outputs.bundle_id }}
+          path: ~/jtreg/
+        continue-on-error: true
+
+      - name: Restore jtreg artifact (retry)
+        uses: actions/download-artifact@v2
+        with:
+          name: transient_jtreg_${{ needs.prerequisites.outputs.bundle_id }}
+          path: ~/jtreg/
+        if: steps.jtreg_restore.outcome == 'failure'
+
+      - name: Restore build artifacts
+        id: build_restore
+        uses: actions/download-artifact@v2
+        with:
+          name: transient_jdk-linux-x64${{ matrix.artifact }}_${{ needs.prerequisites.outputs.bundle_id }}
+          path: ~/jdk-linux-x64${{ matrix.artifact }}
+        continue-on-error: true
+
+      - name: Restore build artifacts (retry)
+        uses: actions/download-artifact@v2
+        with:
+          name: transient_jdk-linux-x64${{ matrix.artifact }}_${{ needs.prerequisites.outputs.bundle_id }}
+          path: ~/jdk-linux-x64${{ matrix.artifact }}
+        if: steps.build_restore.outcome == 'failure'
+
+      - name: Unpack jdk
+        run: |
+          mkdir -p "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin${{ matrix.artifact }}"
+          tar -xf "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin${{ matrix.artifact }}.tar.gz" -C "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin${{ matrix.artifact }}"
+
+      - name: Unpack tests
+        run: |
+          mkdir -p "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin-tests${{ matrix.artifact }}"
+          tar -xf "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin-tests${{ matrix.artifact }}.tar.gz" -C "${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin-tests${{ matrix.artifact }}"
+
+      - name: Find root of jdk image dir
+        run: |
+          imageroot=`find ${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin${{ matrix.artifact }} -name release -type f`
+          echo "imageroot=`dirname ${imageroot}`" >> $GITHUB_ENV
+
+      - name: Turn on system security properties and FIPS mode support
+        run: |
+          sed -i -e "s:^security.useSystemPropertiesFile=.*:security.useSystemPropertiesFile=true:" ${{ env.imageroot }}/conf/security/java.security
+
+      - name: Run tests
+        run: >
+          JDK_IMAGE_DIR=${{ env.imageroot }}
+          TEST_IMAGE_DIR=${HOME}/jdk-linux-x64${{ matrix.artifact }}/jdk-${{ env.JDK_VERSION }}-internal+0_linux-x64_bin-tests${{ matrix.artifact }}
+          BOOT_JDK=${HOME}/bootjdk/${BOOT_JDK_VERSION}
+          JT_HOME=${HOME}/jtreg
+          make run-test-prebuilt
+          CONF_NAME=run-test-prebuilt
+          LOG_CMDLINES=true
+          JTREG_VERBOSE=fail,error,time
+          TEST="${{ matrix.suites }}"
+          TEST_OPTS_JAVA_OPTIONS=
+          JTREG_KEYWORDS="!headful"
+          JTREG="JAVA_OPTIONS='-Djava.security.debug=properties -XX:-CreateCoredumpOnCrash'"
+
+      - name: Check that all tests executed successfully
+        if: always()
+        run: >
+          if ! grep --include=test-summary.txt -lqr build/*/test-results -e "TEST SUCCESS" ; then
+            cat build/*/test-results/*/text/newfailures.txt ;
+            cat build/*/test-results/*/text/other_errors.txt ;
+            exit 1 ;
+          fi
+
+      - name: Create suitable test log artifact name
+        if: always()
+        run: echo "logsuffix=`echo ${{ matrix.test }} | sed -e 's!/!_!'g -e 's! !_!'g`" >> $GITHUB_ENV
+
+      - name: Package test results
+        if: always()
+        working-directory: build/run-test-prebuilt/test-results/
+        run: >
+          zip -r9
+          "$HOME/linux-x64${{ matrix.artifact }}-fips_testresults_${{ env.logsuffix }}.zip"
+          .
+        continue-on-error: true
+
+      - name: Package test support
+        if: always()
+        working-directory: build/run-test-prebuilt/test-support/
+        run: >
+          zip -r9
+          "$HOME/linux-x64${{ matrix.artifact }}-fips_testsupport_${{ env.logsuffix }}.zip"
+          .
+          -i *.jtr
+          -i */hs_err*.log
+          -i */replay*.log
+        continue-on-error: true
+
+      - name: Persist test results
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          path: ~/linux-x64${{ matrix.artifact }}-fips_testresults_${{ env.logsuffix }}.zip
+        continue-on-error: true
+
+      - name: Persist test outputs
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          path: ~/linux-x64${{ matrix.artifact }}-fips_testsupport_${{ env.logsuffix }}.zip
+        continue-on-error: true
+
   linux_additional_build:
     name: Linux additional
     runs-on: "ubuntu-20.04"
@@ -1464,6 +1625,7 @@ jobs:
       - prerequisites
       - linux_additional_build
       - linux_x64_test
+      - linux_x64_test_fips
       - linux_x86_test
       - windows_x64_test
       - macos_x64_test

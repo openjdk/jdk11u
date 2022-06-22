@@ -57,6 +57,11 @@ import sun.security.jca.*;
 
 public final class Security {
 
+    private static final String SYS_PROP_SWITCH =
+        "java.security.disableSystemPropertiesFile";
+    private static final String SEC_PROP_SWITCH =
+        "security.useSystemPropertiesFile";
+
     /* Are we debugging? -- for developers */
     private static final Debug sdebug =
                         Debug.getInstance("properties");
@@ -100,6 +105,7 @@ public final class Security {
         props = new Properties();
         boolean loadedProps = false;
         boolean overrideAll = false;
+        boolean systemSecPropsEnabled = false;
 
         // first load the system properties file
         // to determine the value of security.overridePropertiesFile
@@ -210,26 +216,59 @@ public final class Security {
             }
         }
 
-        String disableSystemProps = System.getProperty("java.security.disableSystemPropertiesFile");
-        if ((disableSystemProps == null || "false".equalsIgnoreCase(disableSystemProps)) &&
-            "true".equalsIgnoreCase(props.getProperty("security.useSystemPropertiesFile"))) {
-            if (!SystemConfigurator.configureSysProps(props)) {
+        boolean sysUseProps = Boolean.valueOf(System.getProperty(SYS_PROP_SWITCH, "false"));
+        boolean secUseProps = Boolean.valueOf(props.getProperty(SEC_PROP_SWITCH));
+        if (sdebug != null) {
+            sdebug.println(SYS_PROP_SWITCH + "=" + sysUseProps);
+            sdebug.println(SEC_PROP_SWITCH + "=" + secUseProps);
+        }
+        if (!sysUseProps && secUseProps) {
+            systemSecPropsEnabled = SystemConfigurator.configureSysProps(props);
+            if (!systemSecPropsEnabled) {
                 if (sdebug != null) {
-                    sdebug.println("WARNING: System properties could not be loaded.");
+                    sdebug.println("WARNING: System security properties could not be loaded.");
                 }
+            }
+        } else {
+            if (sdebug != null) {
+                sdebug.println("System security property support disabled by user.");
             }
         }
 
         // FIPS support depends on the contents of java.security so
         // ensure it has loaded first
-        if (loadedProps) {
-            boolean fipsEnabled = SystemConfigurator.configureFIPS(props);
-            if (sdebug != null) {
-                if (fipsEnabled) {
-                    sdebug.println("FIPS support enabled.");
-                } else {
-                    sdebug.println("FIPS support disabled.");
+        if (loadedProps && systemSecPropsEnabled) {
+            boolean shouldEnable;
+            String sysProp = System.getProperty("com.redhat.fips");
+            if (sysProp == null) {
+                shouldEnable = true;
+                if (sdebug != null) {
+                    sdebug.println("com.redhat.fips unset, using default value of true");
                 }
+            } else {
+                shouldEnable = Boolean.valueOf(sysProp);
+                if (sdebug != null) {
+                    sdebug.println("com.redhat.fips set, using its value " + shouldEnable);
+                }
+            }
+            if (shouldEnable) {
+                boolean fipsEnabled = SystemConfigurator.configureFIPS(props);
+                if (sdebug != null) {
+                    if (fipsEnabled) {
+                        sdebug.println("FIPS mode support configured and enabled.");
+                    } else {
+                        sdebug.println("FIPS mode support disabled.");
+                    }
+                }
+            } else {
+                if (sdebug != null ) {
+                    sdebug.println("FIPS mode support disabled by user.");
+                }
+            }
+        } else {
+            if (sdebug != null) {
+                sdebug.println("WARNING: FIPS mode support can not be enabled without " +
+                               "system security properties being enabled.");
             }
         }
     }

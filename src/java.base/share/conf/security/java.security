@@ -86,7 +86,7 @@ security.provider.tbd=SunPKCS11
 #endif
 
 #
-# Security providers used when global crypto-policies are set to FIPS.
+# Security providers used when FIPS mode support is active
 #
 fips.provider.1=SunPKCS11 ${java.home}/conf/security/nss.fips.cfg
 fips.provider.2=SUN
@@ -353,7 +353,7 @@ security.overridePropertiesFile=true
 # using the system properties file stored at
 # /etc/crypto-policies/back-ends/java.config
 #
-security.useSystemPropertiesFile=true
+security.useSystemPropertiesFile=false
 
 #
 # Determines the default key and trust manager factory algorithms for

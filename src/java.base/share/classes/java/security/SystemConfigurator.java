@@ -77,13 +77,13 @@ final class SystemConfigurator {
      * security.useSystemPropertiesFile is true.
      */
     static boolean configureSysProps(Properties props) {
-        boolean loadedProps = false;
+        boolean systemSecPropsLoaded = false;
 
         try (BufferedInputStream bis =
                 new BufferedInputStream(
                         new FileInputStream(CRYPTO_POLICIES_JAVA_CONFIG))) {
             props.load(bis);
-            loadedProps = true;
+            systemSecPropsLoaded = true;
             if (sdebug != null) {
                 sdebug.println("reading system security properties file " +
                         CRYPTO_POLICIES_JAVA_CONFIG);
@@ -96,7 +96,7 @@ final class SystemConfigurator {
                 e.printStackTrace();
             }
         }
-        return loadedProps;
+        return systemSecPropsLoaded;
     }
 
     /*
@@ -168,6 +168,8 @@ final class SystemConfigurator {
                         sdebug.println("FIPS support enabled without plain key support");
                     }
                 }
+            } else {
+                if (sdebug != null) { sdebug.println("FIPS mode not detected"); }
             }
         } catch (Exception e) {
             if (sdebug != null) {
@@ -208,37 +210,39 @@ final class SystemConfigurator {
         return plainKeySupportEnabled;
     }
 
-    /*
-     * OpenJDK FIPS mode will be enabled only if the com.redhat.fips
-     * system property is true (default) and the system is in FIPS mode.
+    /**
+     * Determines whether FIPS mode should be enabled.
+     *
+     * OpenJDK FIPS mode will be enabled only if the system is in
+     * FIPS mode.
+     *
+     * Calls to this method only occur if the system property
+     * com.redhat.fips is not set to false.
      *
      * There are 2 possible ways in which OpenJDK detects that the system
      * is in FIPS mode: 1) if the NSS SECMOD_GetSystemFIPSEnabled API is
      * available at OpenJDK's built-time, it is called; 2) otherwise, the
      * /proc/sys/crypto/fips_enabled file is read.
+     *
+     * @return true if the system is in FIPS mode
      */
     private static boolean enableFips() throws Exception {
-        boolean shouldEnable = Boolean.valueOf(System.getProperty("com.redhat.fips", "true"));
-        if (shouldEnable) {
+        if (sdebug != null) {
+            sdebug.println("Calling getSystemFIPSEnabled (libsystemconf)...");
+        }
+        try {
+            boolean fipsEnabled = getSystemFIPSEnabled();
             if (sdebug != null) {
-                sdebug.println("Calling getSystemFIPSEnabled (libsystemconf)...");
+                sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) returned: "
+                               + fipsEnabled);
             }
-            try {
-                shouldEnable = getSystemFIPSEnabled();
-                if (sdebug != null) {
-                    sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) returned: "
-                            + shouldEnable);
-                }
-                return shouldEnable;
-            } catch (IOException e) {
-                if (sdebug != null) {
-                    sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) failed:");
-                    sdebug.println(e.getMessage());
-                }
-                throw e;
+            return fipsEnabled;
+        } catch (IOException e) {
+            if (sdebug != null) {
+                sdebug.println("Call to getSystemFIPSEnabled (libsystemconf) failed:");
+                sdebug.println(e.getMessage());
             }
-        } else {
-            return false;
+            throw e;
         }
     }
 }
