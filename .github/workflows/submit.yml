@@ -495,7 +495,7 @@ jobs:
           TEST="${{ matrix.suites }}"
           TEST_OPTS_JAVA_OPTIONS=
           JTREG_KEYWORDS="!headful"
-          JTREG="JAVA_OPTIONS='-Djava.security.debug=properties -XX:-CreateCoredumpOnCrash'"
+          JTREG="JAVA_OPTIONS=-Djava.security.debug=properties%20-XX:-CreateCoredumpOnCrash"
 
       - name: Check that all tests executed successfully
         if: always()
