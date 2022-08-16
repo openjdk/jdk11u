@@ -33,6 +33,7 @@ import java.lang.ref.*;
 import java.security.*;
 import javax.security.auth.login.LoginException;
 
+import jdk.internal.misc.SharedSecrets;
 import sun.security.jca.JCAUtil;
 
 import sun.security.pkcs11.wrapper.*;
@@ -46,6 +47,9 @@ import static sun.security.pkcs11.wrapper.PKCS11Constants.*;
  * @since   1.5
  */
 class Token implements Serializable {
+
+    private static final boolean systemFipsEnabled = SharedSecrets
+            .getJavaSecuritySystemConfiguratorAccess().isSystemFipsEnabled();
 
     // need to be serializable to allow SecureRandom to be serialized
     private static final long serialVersionUID = 2541527649100571747L;
@@ -112,6 +116,10 @@ class Token implements Serializable {
 
     // flag indicating whether we are logged in
     private volatile boolean loggedIn;
+
+    // Flag indicating the login status for the NSS Software Token in FIPS mode.
+    // This Token is never asynchronously removed. Used from SunPKCS11.
+    volatile boolean fipsLoggedIn;
 
     // time we last checked login status
     private long lastLoginCheck;
@@ -231,7 +239,12 @@ class Token implements Serializable {
     // call provider.login() if not
     void ensureLoggedIn(Session session) throws PKCS11Exception, LoginException {
         if (isLoggedIn(session) == false) {
-            provider.login(null, null);
+            if (systemFipsEnabled) {
+                provider.login(null, new FIPSTokenLoginHandler());
+                fipsLoggedIn = true;
+            } else {
+                provider.login(null, null);
+            }
         }
     }
 

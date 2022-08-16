@@ -51,6 +51,7 @@ import jdk.internal.misc.SharedSecrets;
 import sun.security.util.Debug;
 import sun.security.util.ResourcesMgr;
 import static sun.security.util.SecurityConstants.PROVIDER_VER;
+import sun.security.util.SecurityProperties;
 
 import sun.security.pkcs11.Secmod.*;
 
@@ -87,6 +88,8 @@ public final class SunPKCS11 extends AuthProvider {
         }
         fipsImportKey = fipsImportKeyTmp;
     }
+
+    private static final String FIPS_NSSDB_PATH_PROP = "fips.nssdb.path";
 
     private static final long serialVersionUID = -1354835039035306505L;
 
@@ -140,6 +143,18 @@ public final class SunPKCS11 extends AuthProvider {
             return AccessController.doPrivileged(new PrivilegedExceptionAction<>() {
                 @Override
                 public SunPKCS11 run() throws Exception {
+                    if (systemFipsEnabled) {
+                        /*
+                         * The nssSecmodDirectory attribute in the SunPKCS11
+                         * NSS configuration file takes the value of the
+                         * fips.nssdb.path System property after expansion.
+                         * Security properties expansion is unsupported.
+                         */
+                        System.setProperty(
+                                FIPS_NSSDB_PATH_PROP,
+                                SecurityProperties.privilegedGetOverridable(
+                                        FIPS_NSSDB_PATH_PROP));
+                    }
                     return new SunPKCS11(new Config(newConfigName));
                 }
             });
@@ -408,24 +423,6 @@ public final class SunPKCS11 extends AuthProvider {
             initToken(slotInfo);
             if (nssModule != null) {
                 nssModule.setProvider(this);
-            }
-            if (systemFipsEnabled) {
-                // The NSS Software Token in FIPS 140-2 mode requires a user
-                // login for most operations. See sftk_fipsCheck. The NSS DB
-                // (/etc/pki/nssdb) PIN is empty.
-                Session session = null;
-                try {
-                    session = token.getOpSession();
-                    p11.C_Login(session.id(), CKU_USER, new char[] {});
-                } catch (PKCS11Exception p11e) {
-                    if (debug != null) {
-                        debug.println("Error during token login: " +
-                                p11e.getMessage());
-                    }
-                    throw p11e;
-                } finally {
-                    token.releaseSession(session);
-                }
             }
         } catch (Exception e) {
             if (config.getHandleStartupErrors() == Config.ERR_IGNORE_ALL) {
@@ -1215,6 +1212,27 @@ public final class SunPKCS11 extends AuthProvider {
             if (token.isValid() == false) {
                 throw new NoSuchAlgorithmException("Token has been removed");
             }
+            if (systemFipsEnabled && !token.fipsLoggedIn &&
+                    !getType().equals("KeyStore")) {
+                /*
+                 * The NSS Software Token in FIPS 140-2 mode requires a
+                 * user login for most operations. See sftk_fipsCheck
+                 * (nss/lib/softoken/fipstokn.c). In case of a KeyStore
+                 * service, let the caller perform the login with
+                 * KeyStore::load. Keytool, for example, does this to pass a
+                 * PIN from either the -srcstorepass or -deststorepass
+                 * argument. In case of a non-KeyStore service, perform the
+                 * login now with the PIN available in the fips.nssdb.pin
+                 * property.
+                 */
+                try {
+                    token.ensureLoggedIn(null);
+                } catch (PKCS11Exception | LoginException e) {
+                    throw new ProviderException("FIPS: error during the Token" +
+                            " login required for the " + getType() +
+                            " service.", e);
+                }
+            }
             try {
                 return newInstance0(param);
             } catch (PKCS11Exception e) {
@@ -1567,6 +1585,9 @@ public final class SunPKCS11 extends AuthProvider {
         try {
             session = token.getOpSession();
             p11.C_Logout(session.id());
+            if (systemFipsEnabled) {
+                token.fipsLoggedIn = false;
+            }
             if (debug != null) {
                 debug.println("logout succeeded");
             }

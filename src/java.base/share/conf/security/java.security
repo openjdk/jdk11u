@@ -312,6 +312,42 @@ keystore.type=pkcs12
 fips.keystore.type=PKCS11
 
 #
+# Location of the NSS DB keystore (PKCS11) in FIPS mode.
+#
+# The syntax for this property is identical to the 'nssSecmodDirectory'
+# attribute available in the SunPKCS11 NSS configuration file. Use the
+# 'sql:' prefix to refer to an SQLite DB.
+#
+# If the system property fips.nssdb.path is also specified, it supersedes
+# the security property value defined here.
+#
+# Note: the default value for this property points to an NSS DB that might be
+# readable by multiple operating system users and unsuitable to store keys.
+#
+fips.nssdb.path=sql:/etc/pki/nssdb
+
+#
+# PIN for the NSS DB keystore (PKCS11) in FIPS mode.
+#
+# Values must take any of the following forms:
+#   1) pin:<value>
+#        Value: clear text PIN value.
+#   2) env:<value>
+#        Value: environment variable containing the PIN value.
+#   3) file:<value>
+#        Value: path to a file containing the PIN value in its first
+#        line.
+#
+# If the system property fips.nssdb.pin is also specified, it supersedes
+# the security property value defined here.
+#
+# When used as a system property, UTF-8 encoded values are valid. When
+# used as a security property, encode non-Basic Latin Unicode characters
+# with \uXXXX.
+#
+fips.nssdb.pin=pin:
+
+#
 # Controls compatibility mode for JKS and PKCS12 keystore types.
 #
 # When set to 'true', both JKS and PKCS12 keystore types support loading
