@@ -982,7 +982,7 @@ public class Main {
                                         tsSi.getCertificateChain(tsToken),
                                         tsDate);
                                 history = String.format(
-                                        rb.getString("history.with.ts"),      // GLGLGL
+                                        rb.getString("history.with.ts"),
                                         signer.getSubjectX500Principal(),
                                         verifyWithWeak(digestAlg, DIGEST_PRIMITIVE_SET, false, jcp),
                                         verifyWithWeak(sigAlg, SIG_PRIMITIVE_SET, false, jcp),
