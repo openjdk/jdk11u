@@ -57,9 +57,6 @@ import jdk.jfr.internal.Utils;
  * This class is also used by {@link RecordedObject#toString()}
  */
 public final class PrettyWriter extends EventPrintWriter {
-    private static final Duration MILLSECOND = Duration.ofMillis(1);
-    private static final Duration SECOND = Duration.ofSeconds(1);
-    private static final Duration MINUTE = Duration.ofMinutes(1);
     private static final String TYPE_OLD_OBJECT = Type.TYPES_PREFIX + "OldObject";
     private final static DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private final static Long ZERO = 0L;
@@ -551,15 +548,7 @@ public final class PrettyWriter extends EventPrintWriter {
                 println("N/A");
                 return true;
             }
-            if(d.compareTo(MILLSECOND) < 0){
-                println(String.format("%.3f us", (double)d.toNanos() / 1_000));
-            } else if(d.compareTo(SECOND) < 0){
-                println(String.format("%.3f ms", (double)d.toNanos() / 1_000_000));
-            } else if(d.compareTo(MINUTE) < 0){
-                println(String.format("%.3f s", (double)d.toMillis() / 1_000));
-            } else {
-                println(String.format("%d s", d.toSeconds()));
-            }
+            println(Utils.formatDuration(d));
             return true;
         }
         if (value instanceof OffsetDateTime) {
