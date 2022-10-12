@@ -1558,11 +1558,11 @@ class DeoptActionSerializer : public JfrSerializer {
 
 static void register_serializers() {
   static int critical_section = 0;
-  if (1 == critical_section || Atomic::cmpxchg(&critical_section, 0, 1) == 1) {
+  if (1 == critical_section || Atomic::cmpxchg(1, &critical_section, 0) == 1) {
     return;
   }
-  JfrSerializer::register_serializer(TYPE_DEOPTIMIZATIONREASON, true, new DeoptReasonSerializer());
-  JfrSerializer::register_serializer(TYPE_DEOPTIMIZATIONACTION, true, new DeoptActionSerializer());
+  JfrSerializer::register_serializer(TYPE_DEOPTIMIZATIONREASON, false, true, new DeoptReasonSerializer());
+  JfrSerializer::register_serializer(TYPE_DEOPTIMIZATIONACTION, false, true, new DeoptActionSerializer());
 }
 
 static void post_deoptimization_event(CompiledMethod* nm,
