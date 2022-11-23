@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2003, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -147,7 +147,7 @@ public class LinkFactoryImpl extends LinkFactory {
             ((DeclaredType)linkInfo.type).getTypeArguments().stream().forEach(vars::add);
         } else if (ctype != null && utils.isDeclaredType(ctype)) {
             ((DeclaredType)ctype).getTypeArguments().stream().forEach(vars::add);
-        } else if (linkInfo.typeElement != null) {
+        } else if (ctype == null && linkInfo.typeElement != null) {
             linkInfo.typeElement.getTypeParameters().stream().forEach((t) -> {
                 vars.add(t.asType());
             });

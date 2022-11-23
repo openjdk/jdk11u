@@ -83,6 +83,7 @@ import static com.sun.source.doctree.DocTree.Kind.*;
  *  deletion without notice.</b>
  */
 public class CommentHelper {
+    private final BaseConfiguration configuration;
     public final TreePath path;
     public final DocCommentTree dctree;
     public final Element element;
@@ -91,7 +92,7 @@ public class CommentHelper {
     public static final String SPACER = " ";
 
     public CommentHelper(BaseConfiguration configuration, Element element, TreePath path, DocCommentTree dctree) {
-        //this.configuration = configuration;
+        this.configuration = configuration;
         this.element = element;
         this.path = path;
         this.dctree = dctree;
@@ -144,14 +145,15 @@ public class CommentHelper {
         }
     }
 
-    Element getElement(BaseConfiguration c, ReferenceTree rtree) {
+    Element getElement(ReferenceTree rtree) {
+        Utils utils = configuration.utils;
         // likely a synthesized tree
         if (path == null) {
-            TypeMirror symbol = c.utils.getSymbol(rtree.getSignature());
+            TypeMirror symbol = utils.getSymbol(rtree.getSignature());
             if (symbol == null) {
                 return null;
             }
-            return  c.docEnv.getTypeUtils().asElement(symbol);
+            return  configuration.docEnv.getTypeUtils().asElement(symbol);
         }
         // case A: the element contains no comments associated and
         // the comments need to be copied from ancestor
@@ -160,8 +162,8 @@ public class CommentHelper {
 
         // Case A.
         if (dctree == null && overriddenElement != null) {
-            CommentHelper ovch = c.utils.getCommentHelper(overriddenElement);
-            return ovch.getElement(c, rtree);
+            CommentHelper ovch = utils.getCommentHelper(overriddenElement);
+            return ovch.getElement(rtree);
         }
         if (dctree == null) {
             return null;
@@ -170,20 +172,29 @@ public class CommentHelper {
         if (docTreePath == null) {
             // Case B.
             if (overriddenElement != null) {
-                CommentHelper ovch = c.utils.getCommentHelper(overriddenElement);
-                return ovch.getElement(c, rtree);
+                CommentHelper ovch = utils.getCommentHelper(overriddenElement);
+                return ovch.getElement(rtree);
             }
             return null;
         }
-        DocTrees doctrees = c.docEnv.getDocTrees();
+        DocTrees doctrees = configuration.docEnv.getDocTrees();
         return doctrees.getElement(docTreePath);
+    }
+
+    public TypeMirror getType(ReferenceTree rtree) {
+        DocTreePath docTreePath = DocTreePath.getPath(path, dctree, rtree);
+        if (docTreePath != null) {
+            DocTrees doctrees = configuration.docEnv.getDocTrees();
+            return doctrees.getType(docTreePath);
+        }
+        return null;
     }
 
     public Element getException(BaseConfiguration c, DocTree dtree) {
         if (dtree.getKind() == THROWS || dtree.getKind() == EXCEPTION) {
             ThrowsTree tt = (ThrowsTree)dtree;
             ReferenceTree exceptionName = tt.getExceptionName();
-            return getElement(c, exceptionName);
+            return getElement(exceptionName);
         }
         return null;
     }
@@ -431,48 +442,19 @@ public class CommentHelper {
     }
 
     private Element getReferencedElement(BaseConfiguration c, DocTree dtree) {
-        return new SimpleDocTreeVisitor<Element, Void>() {
-            @Override
-            public Element visitSee(SeeTree node, Void p) {
-                for (DocTree dt : node.getReference()) {
-                    return visit(dt, null);
-                }
-                return null;
-            }
-
-            @Override
-            public Element visitLink(LinkTree node, Void p) {
-                return visit(node.getReference(), null);
-            }
-
-            @Override
-            public Element visitProvides(ProvidesTree node, Void p) {
-                return visit(node.getServiceType(), null);
-            }
-
-            @Override
-            public Element visitValue(ValueTree node, Void p) {
-                return visit(node.getReference(), null);
-            }
-
+        return new ReferenceDocTreeVisitor<Element>() {
             @Override
             public Element visitReference(ReferenceTree node, Void p) {
-                return getElement(c, node);
+                return getElement(node);
             }
+        }.visit(dtree, null);
+    }
 
+    public TypeMirror getReferencedType(DocTree dtree) {
+        return new ReferenceDocTreeVisitor<TypeMirror>() {
             @Override
-            public Element visitSerialField(SerialFieldTree node, Void p) {
-                return visit(node.getType(), null);
-            }
-
-            @Override
-            public Element visitUses(UsesTree node, Void p) {
-                return visit(node.getServiceType(), null);
-            }
-
-            @Override
-            protected Element defaultAction(DocTree node, Void p) {
-               return null;
+            public TypeMirror visitReference(ReferenceTree node, Void p) {
+                return getType(node);
             }
         }.visit(dtree, null);
     }
@@ -486,40 +468,52 @@ public class CommentHelper {
     }
 
     public  String getReferencedSignature(DocTree dtree) {
-        return new SimpleDocTreeVisitor<String, Void>() {
-            @Override
-            public String visitSee(SeeTree node, Void p) {
-                for (DocTree dt : node.getReference()) {
-                    return visit(dt, null);
-                }
-                return null;
-            }
-
-            @Override
-            public String visitLink(LinkTree node, Void p) {
-                return visit(node.getReference(), null);
-            }
-
-            @Override
-            public String visitValue(ValueTree node, Void p) {
-                return visit(node.getReference(), null);
-            }
-
+        return new ReferenceDocTreeVisitor<String>() {
             @Override
             public String visitReference(ReferenceTree node, Void p) {
                 return node.getSignature();
             }
-
-            @Override
-            public String visitSerialField(SerialFieldTree node, Void p) {
-                return visit(node.getType(), null);
-            }
-
-            @Override
-            protected String defaultAction(DocTree node, Void p) {
-               return null;
-            }
         }.visit(dtree, null);
+    }
+
+    private static class ReferenceDocTreeVisitor<R> extends SimpleDocTreeVisitor<R, Void> {
+        @Override
+        public R visitSee(SeeTree node, Void p) {
+            for (DocTree dt : node.getReference()) {
+                return visit(dt, null);
+            }
+            return null;
+        }
+
+        @Override
+        public R visitLink(LinkTree node, Void p) {
+            return visit(node.getReference(), null);
+        }
+
+        @Override
+        public R visitProvides(ProvidesTree node, Void p) {
+            return visit(node.getServiceType(), null);
+        }
+
+        @Override
+        public R visitValue(ValueTree node, Void p) {
+            return visit(node.getReference(), null);
+        }
+
+        @Override
+        public R visitSerialField(SerialFieldTree node, Void p) {
+            return visit(node.getType(), null);
+        }
+
+        @Override
+        public R visitUses(UsesTree node, Void p) {
+            return visit(node.getServiceType(), null);
+        }
+
+        @Override
+        protected R defaultAction(DocTree node, Void p) {
+            return null;
+        }
     }
 
     public List<? extends DocTree> getReference(DocTree dtree) {

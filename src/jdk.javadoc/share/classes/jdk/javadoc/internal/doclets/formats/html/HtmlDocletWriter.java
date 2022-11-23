@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1998, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1035,19 +1035,15 @@ public class HtmlDocletWriter {
         } else if (refMemName == null) {
             // Must be a class reference since refClass is not null and refMemName is null.
             if (label.isEmpty()) {
-                /*
-                 * it seems to me this is the right thing to do, but it causes comparator failures.
-                 */
-                if (!configuration.backwardCompatibility) {
-                    StringContent content = utils.isEnclosingPackageIncluded(refClass)
-                            ? new StringContent(utils.getSimpleName(refClass))
-                            : new StringContent(utils.getFullyQualifiedName(refClass));
-                    label = plainOrCode(isLinkPlain, content);
-                } else {
-                    label = plainOrCode(isLinkPlain,
-                            new StringContent(utils.getSimpleName(refClass)));
+                if (!refClass.getTypeParameters().isEmpty() && seetext.contains("<")) {
+                    // If this is a generic type link try to use the TypeMirror representation.
+                    TypeMirror refType = ch.getReferencedType(see);
+                    if (refType != null) {
+                        return plainOrCode(isLinkPlain, getLink(
+                                new LinkInfoImpl(configuration, LinkInfoImpl.Kind.DEFAULT, refType)));
+                    }
                 }
-
+                label = plainOrCode(isLinkPlain, new StringContent(utils.getSimpleName(refClass)));
             }
             return getLink(new LinkInfoImpl(configuration, LinkInfoImpl.Kind.DEFAULT, refClass)
                     .label(label));

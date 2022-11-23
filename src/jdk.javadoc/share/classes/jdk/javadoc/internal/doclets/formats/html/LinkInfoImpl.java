@@ -188,11 +188,6 @@ public class LinkInfoImpl extends LinkInfo {
         ANNOTATION,
 
         /**
-         * The header for field documentation copied from parent.
-         */
-        VARIABLE_ELEMENT_COPY,
-
-        /**
          * The parent nodes in the class tree.
          */
         CLASS_TREE_PARENT,
@@ -358,7 +353,6 @@ public class LinkInfoImpl extends LinkInfo {
             case IMPLEMENTED_CLASSES:
             case SUBCLASSES:
             case EXECUTABLE_ELEMENT_COPY:
-            case VARIABLE_ELEMENT_COPY:
             case PROPERTY_COPY:
             case CLASS_USE_HEADER:
                 includeTypeInClassLinkLabel = false;

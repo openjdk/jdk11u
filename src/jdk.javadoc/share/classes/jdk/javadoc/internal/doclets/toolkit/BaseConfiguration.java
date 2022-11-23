@@ -138,11 +138,6 @@ public abstract class BaseConfiguration {
     public boolean copydocfilesubdirs = false;
 
     /**
-     * Maintain backward compatibility with previous javadoc version
-     */
-    public boolean backwardCompatibility = true;
-
-    /**
      * True if user wants to add member names as meta keywords.
      * Set to false because meta keywords are ignored in general
      * by most Internet search engines.
