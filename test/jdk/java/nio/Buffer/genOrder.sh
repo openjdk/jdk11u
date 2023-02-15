@@ -26,7 +26,7 @@
 javac -d . ../../../../make/src/classes/build/tools/spp/Spp.java > Spp.java
 
 gen() {
-    java  build.tools.spp.Spp -K$1 -Dtype=$1 -DType=$2 -DFulltype=$3<Order-X.java.template >Order$2.java
+    java  build.tools.spp.Spp -K$1 -Dtype=$1 -DType=$2 -DFulltype=$3 -iOrder-X.java.template -oOrder$2.java
 }
 
 gen char Char Character

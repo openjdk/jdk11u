@@ -82,9 +82,9 @@ do
   args="$args -Dvalue1=$value1 -Dvalue2=$value2 -Dvalue3=$value3 -Dwrong_primitive_type=$wrong_primitive_type"
 
   echo $args
-  java $SPP -nel $args < X-VarHandleTestAccess.java.template > VarHandleTestAccess${Type}.java
-  java $SPP -nel $args < X-VarHandleTestMethodHandleAccess.java.template > VarHandleTestMethodHandleAccess${Type}.java
-  java $SPP -nel $args < X-VarHandleTestMethodType.java.template > VarHandleTestMethodType${Type}.java
+  java $SPP -nel $args -iX-VarHandleTestAccess.java.template -oVarHandleTestAccess${Type}.java
+  java $SPP -nel $args -iX-VarHandleTestMethodHandleAccess.java.template -oVarHandleTestMethodHandleAccess${Type}.java
+  java $SPP -nel $args -iX-VarHandleTestMethodType.java.template -oVarHandleTestMethodType${Type}.java
 done
 
 for type in short char int long float double
@@ -161,7 +161,7 @@ do
   args="$args -Dvalue1=$value1 -Dvalue2=$value2 -Dvalue3=$value3"
 
   echo $args
-  java $SPP -nel $args < X-VarHandleTestByteArrayView.java.template > VarHandleTestByteArrayAs${Type}.java
+  java $SPP -nel $args -iX-VarHandleTestByteArrayView.java.template -oVarHandleTestByteArrayAs${Type}.java
 done
 
 rm -fr build

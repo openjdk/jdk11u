@@ -60,7 +60,7 @@ define GenerateVarHandle
         endif
 	$$(call MakeDir, $$(@D))
 	$(TOOL_SPP) -nel -K$$($1_type) -Dtype=$$($1_type) -DType=$$($1_Type) \
-	    $$($1_ARGS) < $$< > $$@
+	    $$($1_ARGS) -i$$< -o$$@
 
   GENSRC_VARHANDLES += $$($1_FILENAME)
 endef
@@ -150,7 +150,7 @@ define GenerateVarHandleByteArray
 	$(TOOL_SPP) -nel -K$$($1_type) \
 	    -Dtype=$$($1_type) -DType=$$($1_Type) -DBoxType=$$($1_BoxType) \
 	    -DrawType=$$($1_rawType) -DRawType=$$($1_RawType) -DRawBoxType=$$($1_RawBoxType) \
-	    $$($1_ARGS) < $$< > $$@
+	    $$($1_ARGS) -i$$< -o$$@
 
   GENSRC_VARHANDLES += $$($1_FILENAME)
 endef
