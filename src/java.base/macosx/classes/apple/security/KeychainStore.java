@@ -860,7 +860,8 @@ public final class KeychainStore extends KeyStoreSpi {
                 String originalAlias = alias;
                 var co = entries.get(alias.toLowerCase());
                 while (co != null) {
-                    if (co instanceof TrustedCertEntry tco) {
+                    if (co instanceof TrustedCertEntry) {
+                        var tco = (TrustedCertEntry)co;
                         if (tco.cert.equals(tce.cert)) {
                             return;
                         }
