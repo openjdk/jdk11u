@@ -166,15 +166,10 @@ public final class SunMSCAPI extends Provider {
                 /*
                  * Key store
                  */
-<<<<<<< HEAD
-                putService(new ProviderService(p, "KeyStore",
-                           "Windows-SST", "sun.security.mscapi.CKeyStore$SST"));
-=======
                 if ("true".equalsIgnoreCase(enableSSTProp)) {
                     putService(new ProviderService(p, "KeyStore",
                         "Windows-SST", "sun.security.mscapi.CKeyStore$SST"));
                 }
->>>>>>> 519809a3b1 (hide SST support behind -Dsun.security.mscapi.enableSST=true)
                 putService(new ProviderService(p, "KeyStore",
                            "Windows-MY", "sun.security.mscapi.CKeyStore$MY"));
                 putService(new ProviderService(p, "KeyStore",
