@@ -48,6 +48,8 @@ public final class SunMSCAPI extends Provider {
 
     private static final String INFO = "Sun's Microsoft Crypto API provider";
 
+    private static final String ENABLE_SST_PROP = "sun.security.mscapi.enableSST";
+
     static {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             public Void run() {
@@ -146,6 +148,9 @@ public final class SunMSCAPI extends Provider {
     public SunMSCAPI() {
         super("SunMSCAPI", PROVIDER_VER, INFO);
 
+        String enableSSTProp = AccessController.doPrivileged(
+            (PrivilegedAction<String>) () -> System.getProperty(ENABLE_SST_PROP));
+
         final Provider p = this;
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             public Void run() {
@@ -161,8 +166,15 @@ public final class SunMSCAPI extends Provider {
                 /*
                  * Key store
                  */
+<<<<<<< HEAD
                 putService(new ProviderService(p, "KeyStore",
                            "Windows-SST", "sun.security.mscapi.CKeyStore$SST"));
+=======
+                if ("true".equalsIgnoreCase(enableSSTProp)) {
+                    putService(new ProviderService(p, "KeyStore",
+                        "Windows-SST", "sun.security.mscapi.CKeyStore$SST"));
+                }
+>>>>>>> 519809a3b1 (hide SST support behind -Dsun.security.mscapi.enableSST=true)
                 putService(new ProviderService(p, "KeyStore",
                            "Windows-MY", "sun.security.mscapi.CKeyStore$MY"));
                 putService(new ProviderService(p, "KeyStore",
