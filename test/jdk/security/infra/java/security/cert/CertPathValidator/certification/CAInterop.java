@@ -302,26 +302,6 @@
  */
 
 /*
- * @test id=digicerttlseccrootg5
- * @bug 8318759
- * @summary Interoperability tests with DigiCert TLS ECC P384 Root G5
- * @library /test/lib
- * @build jtreg.SkippedException ValidatePathWithURL CAInterop
- * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop digicerttlseccrootg5 OCSP
- * @run main/othervm -Djava.security.debug=certpath CAInterop digicerttlseccrootg5 CRL
- */
-
-/*
- * @test id=digicerttlsrsarootg5
- * @bug 8318759
- * @summary Interoperability tests with DigiCert TLS RSA4096 Root G5
- * @library /test/lib
- * @build jtreg.SkippedException ValidatePathWithURL CAInterop
- * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop digicerttlsrsarootg5 OCSP
- * @run main/othervm -Djava.security.debug=certpath CAInterop digicerttlsrsarootg5 CRL
- */
-
-/*
  * @test id=sslrootrsaca
  * @bug 8243320
  * @summary Interoperability tests with SSL.com's RSA CA
@@ -429,6 +409,26 @@
  * @build jtreg.SkippedException ValidatePathWithURL CAInterop
  * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop teliarootcav2 OCSP
  * @run main/othervm -Djava.security.debug=certpath CAInterop teliarootcav2 CRL
+ */
+
+/*
+ * @test id=emsignrootcag1
+ * @bug 8319187
+ * @summary Interoperability tests with eMudhra Root CA G1
+ * @library /test/lib
+ * @build jtreg.SkippedException ValidatePathWithURL CAInterop
+ * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop emsignrootcag1 OCSP
+ * @run main/othervm -Djava.security.debug=certpath CAInterop emsignrootcag1 CRL
+ */
+
+/*
+ * @test id=emsigneccrootcag3
+ * @bug 8319187
+ * @summary Interoperability tests with eMudhra ECC Root CA G3
+ * @library /test/lib
+ * @build jtreg.SkippedException ValidatePathWithURL CAInterop
+ * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop emsigneccrootcag3 OCSP
+ * @run main/othervm -Djava.security.debug=certpath CAInterop emsigneccrootcag3 CRL
  */
 
 /**
@@ -585,6 +585,13 @@ public class CAInterop {
             case "affirmtrustpremiumeccca":
                     return new CATestURLs("https://validpremiumecc.affirmtrust.com",
                             "https://revokedpremiumecc.affirmtrust.com");
+
+            case "emsignrootcag1":
+                    return new CATestURLs("https://testovg1.emsign.com/RootOVG1.html",
+                            "https://testovg1r.emsign.com/RootOVG1MR.html");
+            case "emsigneccrootcag3":
+                    return new CATestURLs("https://testovg3.emsign.com/RootOVG3.html",
+                            "https://testovg3r.emsign.com/RootOVG3MR.html");
 
             default: throw new RuntimeException("No test setup found for: " + alias);
         }
