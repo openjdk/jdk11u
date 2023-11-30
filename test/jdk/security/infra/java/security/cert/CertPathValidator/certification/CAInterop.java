@@ -302,6 +302,26 @@
  */
 
 /*
+ * @test id=digicerttlseccrootg5
+ * @bug 8318759
+ * @summary Interoperability tests with DigiCert TLS ECC P384 Root G5
+ * @library /test/lib
+ * @build jtreg.SkippedException ValidatePathWithURL CAInterop
+ * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop digicerttlseccrootg5 OCSP
+ * @run main/othervm -Djava.security.debug=certpath CAInterop digicerttlseccrootg5 CRL
+ */
+
+/*
+ * @test id=digicerttlsrsarootg5
+ * @bug 8318759
+ * @summary Interoperability tests with DigiCert TLS RSA4096 Root G5
+ * @library /test/lib
+ * @build jtreg.SkippedException ValidatePathWithURL CAInterop
+ * @run main/othervm -Djava.security.debug=certpath,ocsp CAInterop digicerttlsrsarootg5 OCSP
+ * @run main/othervm -Djava.security.debug=certpath CAInterop digicerttlsrsarootg5 CRL
+ */
+
+/*
  * @test id=sslrootrsaca
  * @bug 8243320
  * @summary Interoperability tests with SSL.com's RSA CA
