@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -94,7 +94,9 @@
 #endif // INCLUDE_AOT
 
 #ifdef LINUX
+#include "os_linux.hpp"
 #include "osContainer_linux.hpp"
+#include "cgroupSubsystem_linux.hpp"
 #endif
 
 #define SIZE_T_MAX_VALUE ((size_t) -1)
@@ -706,6 +708,10 @@ static jmethodID reflected_method_to_jmid(JavaThread* thread, JNIEnv* env, jobje
   return env->FromReflectedMethod(method);
 }
 
+static CompLevel highestCompLevel() {
+  return TieredCompilation ? MIN2((CompLevel) TieredStopAtLevel, CompLevel_highest_tier) : CompLevel_highest_tier;
+}
+
 // Deoptimizes all compiled frames and makes nmethods not entrant if it's requested
 class VM_WhiteBoxDeoptimizeFrames : public VM_WhiteBoxOperation {
  private:
@@ -783,7 +789,7 @@ WB_ENTRY(jboolean, WB_IsMethodCompiled(JNIEnv* env, jobject o, jobject method, j
 WB_END
 
 WB_ENTRY(jboolean, WB_IsMethodCompilable(JNIEnv* env, jobject o, jobject method, jint comp_level, jboolean is_osr))
-  if (method == NULL || comp_level > MIN2((CompLevel) TieredStopAtLevel, CompLevel_highest_tier)) {
+  if (method == NULL || comp_level > highestCompLevel()) {
     return false;
   }
   jmethodID jmid = reflected_method_to_jmid(thread, env, method);
@@ -806,7 +812,7 @@ WB_ENTRY(jboolean, WB_IsMethodQueuedForCompilation(JNIEnv* env, jobject o, jobje
 WB_END
 
 WB_ENTRY(jboolean, WB_IsIntrinsicAvailable(JNIEnv* env, jobject o, jobject method, jobject compilation_context, jint compLevel))
-  if (compLevel < CompLevel_none || compLevel > MIN2((CompLevel) TieredStopAtLevel, CompLevel_highest_tier)) {
+  if (compLevel < CompLevel_none || compLevel > highestCompLevel()) {
     return false; // Intrinsic is not available on a non-existent compilation level.
   }
   jmethodID method_id, compilation_context_id;
@@ -885,6 +891,18 @@ WB_ENTRY(jboolean, WB_TestSetForceInlineMethod(JNIEnv* env, jobject o, jobject m
   return result;
 WB_END
 
+#ifdef LINUX
+bool WhiteBox::validate_cgroup(const char* proc_cgroups,
+                               const char* proc_self_cgroup,
+                               const char* proc_self_mountinfo,
+                               u1* cg_flags) {
+  CgroupInfo cg_infos[CG_INFO_LENGTH];
+  return CgroupSubsystemFactory::determine_type(cg_infos, proc_cgroups,
+                                                    proc_self_cgroup,
+                                                    proc_self_mountinfo, cg_flags);
+}
+#endif
+
 bool WhiteBox::compile_method(Method* method, int comp_level, int bci, Thread* THREAD) {
   // Screen for unavailable/bad comp level or null method
   AbstractCompiler* comp = CompileBroker::compiler(comp_level);
@@ -892,7 +910,7 @@ bool WhiteBox::compile_method(Method* method, int comp_level, int bci, Thread* T
     tty->print_cr("WB error: request to compile NULL method");
     return false;
   }
-  if (comp_level > MIN2((CompLevel) TieredStopAtLevel, CompLevel_highest_tier)) {
+  if (comp_level > highestCompLevel()) {
     tty->print_cr("WB error: invalid compilation level %d", comp_level);
     return false;
   }
@@ -931,7 +949,11 @@ WB_END
 
 WB_ENTRY(jboolean, WB_EnqueueInitializerForCompilation(JNIEnv* env, jobject o, jclass klass, jint comp_level))
   InstanceKlass* ik = InstanceKlass::cast(java_lang_Class::as_Klass(JNIHandles::resolve(klass)));
-  return WhiteBox::compile_method(ik->class_initializer(), comp_level, InvocationEntryBci, THREAD);
+  Method* clinit = ik->class_initializer();
+  if (clinit == NULL) {
+    return false;
+  }
+  return WhiteBox::compile_method(clinit, comp_level, InvocationEntryBci, THREAD);
 WB_END
 
 WB_ENTRY(jboolean, WB_ShouldPrintAssembly(JNIEnv* env, jobject o, jobject method, jint comp_level))
@@ -1815,7 +1837,7 @@ WB_ENTRY(jboolean, WB_AreOpenArchiveHeapObjectsMapped(JNIEnv* env))
   return MetaspaceShared::open_archive_heap_region_mapped();
 WB_END
 
-WB_ENTRY(jboolean, WB_IsCDSIncludedInVmBuild(JNIEnv* env))
+WB_ENTRY(jboolean, WB_IsCDSIncluded(JNIEnv* env))
 #if INCLUDE_CDS
 # ifdef _LP64
     if (!UseCompressedOops || !UseCompressedClassPointers) {
@@ -1834,7 +1856,7 @@ WB_ENTRY(jboolean, WB_IsJavaHeapArchiveSupported(JNIEnv* env))
 WB_END
 
 
-WB_ENTRY(jboolean, WB_IsJFRIncludedInVmBuild(JNIEnv* env))
+WB_ENTRY(jboolean, WB_IsJFRIncluded(JNIEnv* env))
 #if INCLUDE_JFR
   return true;
 #else
@@ -2009,6 +2031,43 @@ WB_ENTRY(jboolean, WB_IsContainerized(JNIEnv* env, jobject o))
   return false;
 WB_END
 
+// Physical memory of the host machine (including containers)
+WB_ENTRY(jlong, WB_HostPhysicalMemory(JNIEnv* env, jobject o))
+  LINUX_ONLY(return os::Linux::physical_memory();)
+  return os::physical_memory();
+WB_END
+
+// Physical swap of the host machine (including containers), Linux only.
+WB_ENTRY(jlong, WB_HostPhysicalSwap(JNIEnv* env, jobject o))
+  LINUX_ONLY(return (jlong)os::Linux::host_swap();)
+  return -1; // Not used/implemented on other platforms
+WB_END
+
+WB_ENTRY(jint, WB_ValidateCgroup(JNIEnv* env,
+                                    jobject o,
+                                    jstring proc_cgroups,
+                                    jstring proc_self_cgroup,
+                                    jstring proc_self_mountinfo))
+  jint ret = 0;
+#ifdef LINUX
+  ThreadToNativeFromVM ttnfv(thread);
+  const char* p_cgroups = env->GetStringUTFChars(proc_cgroups, NULL);
+  CHECK_JNI_EXCEPTION_(env, 0);
+  const char* p_s_cgroup = env->GetStringUTFChars(proc_self_cgroup, NULL);
+  CHECK_JNI_EXCEPTION_(env, 0);
+  const char* p_s_mountinfo = env->GetStringUTFChars(proc_self_mountinfo, NULL);
+  CHECK_JNI_EXCEPTION_(env, 0);
+  u1 cg_type_flags = 0;
+  // This sets cg_type_flags
+  WhiteBox::validate_cgroup(p_cgroups, p_s_cgroup, p_s_mountinfo, &cg_type_flags);
+  ret = (jint)cg_type_flags;
+  env->ReleaseStringUTFChars(proc_cgroups, p_cgroups);
+  env->ReleaseStringUTFChars(proc_self_cgroup, p_s_cgroup);
+  env->ReleaseStringUTFChars(proc_self_mountinfo, p_s_mountinfo);
+#endif
+  return ret;
+WB_END
+
 WB_ENTRY(void, WB_PrintOsInfo(JNIEnv* env, jobject o))
   os::print_os_info(tty);
 WB_END
@@ -2026,6 +2085,25 @@ WB_ENTRY(jint, WB_AotLibrariesCount(JNIEnv* env, jobject o))
   result = (jint) AOTLoader::heaps_count();
 #endif
   return result;
+WB_END
+
+WB_ENTRY(jstring, WB_GetLibcName(JNIEnv* env, jobject o))
+  ThreadToNativeFromVM ttn(thread);
+  jstring info_string = env->NewStringUTF(XSTR(LIBC));
+  CHECK_JNI_EXCEPTION_(env, NULL);
+  return info_string;
+WB_END
+
+class VM_WhiteBoxCleanMetaspaces : public VM_WhiteBoxOperation {
+ public:
+  void doit() {
+    ClassLoaderDataGraph::do_unloading(true);
+  }
+};
+
+WB_ENTRY(void, WB_CleanMetaspaces(JNIEnv* env, jobject target))
+  VM_WhiteBoxCleanMetaspaces op;
+  VMThread::execute(&op);
 WB_END
 
 #define CC (char*)
@@ -2233,8 +2311,8 @@ static JNINativeMethod methods[] = {
   {CC"areSharedStringsIgnored",           CC"()Z",    (void*)&WB_AreSharedStringsIgnored },
   {CC"getResolvedReferences", CC"(Ljava/lang/Class;)Ljava/lang/Object;", (void*)&WB_GetResolvedReferences},
   {CC"areOpenArchiveHeapObjectsMapped",   CC"()Z",    (void*)&WB_AreOpenArchiveHeapObjectsMapped},
-  {CC"isCDSIncludedInVmBuild",            CC"()Z",    (void*)&WB_IsCDSIncludedInVmBuild },
-  {CC"isJFRIncludedInVmBuild",            CC"()Z",    (void*)&WB_IsJFRIncludedInVmBuild },
+  {CC"isCDSIncluded",                     CC"()Z",    (void*)&WB_IsCDSIncluded },
+  {CC"isJFRIncluded",                     CC"()Z",    (void*)&WB_IsJFRIncluded },
   {CC"isJavaHeapArchiveSupported",      CC"()Z",      (void*)&WB_IsJavaHeapArchiveSupported },
 
   {CC"clearInlineCaches0",  CC"(Z)V",                 (void*)&WB_ClearInlineCaches },
@@ -2253,9 +2331,16 @@ static JNINativeMethod methods[] = {
   {CC"checkLibSpecifiesNoexecstack", CC"(Ljava/lang/String;)Z",
                                                       (void*)&WB_CheckLibSpecifiesNoexecstack},
   {CC"isContainerized",           CC"()Z",            (void*)&WB_IsContainerized },
+  {CC"validateCgroup",
+      CC"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                                                      (void*)&WB_ValidateCgroup },
+  {CC"hostPhysicalMemory",        CC"()J",            (void*)&WB_HostPhysicalMemory },
+  {CC"hostPhysicalSwap",          CC"()J",            (void*)&WB_HostPhysicalSwap },
   {CC"printOsInfo",               CC"()V",            (void*)&WB_PrintOsInfo },
   {CC"disableElfSectionCache",    CC"()V",            (void*)&WB_DisableElfSectionCache },
   {CC"aotLibrariesCount", CC"()I",                    (void*)&WB_AotLibrariesCount },
+  {CC"getLibcName",     CC"()Ljava/lang/String;",     (void*)&WB_GetLibcName},
+  {CC"cleanMetaspaces", CC"()V",                      (void*)&WB_CleanMetaspaces},
 };
 
 

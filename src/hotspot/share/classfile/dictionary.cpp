@@ -208,6 +208,7 @@ void DictionaryEntry::add_protection_domain(Dictionary* dict, Handle protection_
   if (lt.is_enabled()) {
     LogStream ls(lt);
     print_count(&ls);
+    ls.cr();
   }
 }
 
@@ -613,9 +614,9 @@ void Dictionary::verify() {
   ClassLoaderData* cld = loader_data();
   // class loader must be present;  a null class loader is the
   // boostrap loader
-  guarantee(cld != NULL || DumpSharedSpaces ||
-            cld->class_loader() == NULL ||
-            cld->class_loader()->is_instance(),
+  guarantee(DumpSharedSpaces ||
+            (cld != NULL &&
+             (cld->the_null_class_loader_data() || cld->class_loader()->is_instance())),
             "checking type of class_loader");
 
   ResourceMark rm;

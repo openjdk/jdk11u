@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,10 +30,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-import jdk.testlibrary.JcmdBase;
-import jdk.testlibrary.OutputAnalyzer;
-import jdk.testlibrary.ProcessTools;
-import jdk.testlibrary.Utils;
+import jdk.test.lib.process.OutputAnalyzer;
+import jdk.test.lib.process.ProcessTools;
+import jdk.test.lib.Platform;
+import jdk.test.lib.Utils;
 
 /*
  * @test
@@ -42,6 +42,7 @@ import jdk.testlibrary.Utils;
  * command requests to the current java process.
  *
  * @library /lib/testlibrary
+ * @library /test/lib
  *
  * @build jdk.testlibrary.*
  * @run main/othervm -XX:+UsePerfData TestJcmdSanity
@@ -59,6 +60,7 @@ public class TestJcmdSanity {
         testJcmdPid_f();
         testJcmdPidPerfCounterPrint();
         testJcmdPidBigScript();
+        testJcmdPidVMinfo();
     }
 
     /**
@@ -135,12 +137,10 @@ public class TestJcmdSanity {
      * @param output The generated output from the jcmd.
      * @throws Exception
      */
-    private static void matchJcmdCommands(OutputAnalyzer output) throws Exception {
-        int matchedCount = output.shouldMatchByLine(JCMD_COMMAND_REGEX,
+    private static void matchJcmdCommands(OutputAnalyzer output) {
+        output.shouldMatchByLine(JCMD_COMMAND_REGEX,
                 "help",
                 JCMD_COMMAND_REGEX);
-        assertGreaterThan(matchedCount , 0,
-                "Found no lines matching pattern: " + JCMD_COMMAND_REGEX);
     }
 
     /**
@@ -155,11 +155,9 @@ public class TestJcmdSanity {
      * @param output The generated output from the PerfCounter.print command.
      * @throws Exception
      */
-    private static void matchPerfCounters(OutputAnalyzer output) throws Exception {
-        int matchedCount = output.shouldMatchByLineFrom(PERF_COUNTER_REGEX,
+    private static void matchPerfCounters(OutputAnalyzer output) {
+        output.shouldMatchByLineFrom(PERF_COUNTER_REGEX,
                 PERF_COUNTER_REGEX);
-        assertGreaterThan(matchedCount , 0,
-                "Found no lines matching pattern: " + PERF_COUNTER_REGEX);
     }
 
     private static void verifyOutputAgainstFile(OutputAnalyzer output) throws IOException {
@@ -170,4 +168,21 @@ public class TestJcmdSanity {
                 "The ouput should contain all content of " + path.toAbsolutePath());
     }
 
+    /**
+     * Sanity check for VM.info
+     */
+    private static void testJcmdPidVMinfo() throws Exception {
+        OutputAnalyzer output = JcmdBase.jcmd(VM_ARGS, new String[] {"VM.info"});
+        output.shouldHaveExitValue(0);
+        output.shouldContain(Long.toString(ProcessTools.getProcessId()) + ":");
+
+        // Should find the signal handler summary (except on Windows):
+        if (!Platform.isWindows()) {
+          output.shouldContain("Signal Handlers:");
+          // Should not find any of the possible signal handler modification warnings:
+          output.shouldNotContain(" handler modified!"); // e.g. Warning: SIGILL handler modified!
+          output.shouldNotContain("*** Handler was modified!");
+          output.shouldNotContain("*** Expected: "); // e.g. *** Expected: javaSignalHandler in ...
+        }
+    }
 }

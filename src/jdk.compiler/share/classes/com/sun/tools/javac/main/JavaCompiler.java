@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1029,16 +1029,12 @@ public class JavaCompiler {
         return trees.toList();
     }
 
-    /**
-     * Enter the symbols found in a list of parse trees if the compilation
-     * is expected to proceed beyond anno processing into attr.
-     * As a side-effect, this puts elements on the "todo" list.
-     * Also stores a list of all top level classes in rootClasses.
-     */
-    public List<JCCompilationUnit> enterTreesIfNeeded(List<JCCompilationUnit> roots) {
-       if (shouldStop(CompileState.ATTR))
-           return List.nil();
-        return enterTrees(initModules(roots));
+   /**
+    * Returns true iff the compilation will continue after annotation processing
+    * is done.
+    */
+    public boolean continueAfterProcessAnnotations() {
+        return !shouldStop(CompileState.ATTR);
     }
 
     public List<JCCompilationUnit> initModules(List<JCCompilationUnit> roots) {
@@ -1294,7 +1290,10 @@ public class JavaCompiler {
             options.isSet(PROCESSOR_PATH) ||
             options.isSet(PROCESSOR_MODULE_PATH) ||
             options.isSet(PROC, "only") ||
+            options.isSet(PROC, "full") ||
+            options.isSet(A) ||
             options.isSet(XPRINT);
+        // Skipping -XprintRounds and -XprintProcessorInfo
     }
 
     public void setDeferredDiagnosticHandler(Log.DeferredDiagnosticHandler deferredDiagnosticHandler) {

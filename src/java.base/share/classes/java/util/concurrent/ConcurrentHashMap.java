@@ -2334,17 +2334,15 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
             Node<K,V>[] tab, nt; int n, sc;
             while (s >= (long)(sc = sizeCtl) && (tab = table) != null &&
                    (n = tab.length) < MAXIMUM_CAPACITY) {
-                int rs = resizeStamp(n);
+                int rs = resizeStamp(n) << RESIZE_STAMP_SHIFT;
                 if (sc < 0) {
-                    if ((sc >>> RESIZE_STAMP_SHIFT) != rs || sc == rs + 1 ||
-                        sc == rs + MAX_RESIZERS || (nt = nextTable) == null ||
-                        transferIndex <= 0)
+                    if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||
+                        (nt = nextTable) == null || transferIndex <= 0)
                         break;
                     if (U.compareAndSetInt(this, SIZECTL, sc, sc + 1))
                         transfer(tab, nt);
                 }
-                else if (U.compareAndSetInt(this, SIZECTL, sc,
-                                             (rs << RESIZE_STAMP_SHIFT) + 2))
+                else if (U.compareAndSetInt(this, SIZECTL, sc, rs + 2))
                     transfer(tab, null);
                 s = sumCount();
             }
@@ -2358,11 +2356,11 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         Node<K,V>[] nextTab; int sc;
         if (tab != null && (f instanceof ForwardingNode) &&
             (nextTab = ((ForwardingNode<K,V>)f).nextTable) != null) {
-            int rs = resizeStamp(tab.length);
+            int rs = resizeStamp(tab.length) << RESIZE_STAMP_SHIFT;
             while (nextTab == nextTable && table == tab &&
                    (sc = sizeCtl) < 0) {
-                if ((sc >>> RESIZE_STAMP_SHIFT) != rs || sc == rs + 1 ||
-                    sc == rs + MAX_RESIZERS || transferIndex <= 0)
+                if (sc == rs + MAX_RESIZERS || sc == rs + 1 ||
+                    transferIndex <= 0)
                     break;
                 if (U.compareAndSetInt(this, SIZECTL, sc, sc + 1)) {
                     transfer(tab, nextTab);
@@ -2854,22 +2852,20 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
          * Possibly blocks awaiting root lock.
          */
         private final void contendedLock() {
-            boolean waiting = false;
+            Thread current = Thread.currentThread(), w;
             for (int s;;) {
                 if (((s = lockState) & ~WAITER) == 0) {
                     if (U.compareAndSetInt(this, LOCKSTATE, s, WRITER)) {
-                        if (waiting)
-                            waiter = null;
+                        if (waiter == current)
+                            U.compareAndSetObject(this, WAITERTHREAD, current, null);
                         return;
                     }
                 }
-                else if ((s & WAITER) == 0) {
-                    if (U.compareAndSetInt(this, LOCKSTATE, s, s | WAITER)) {
-                        waiting = true;
-                        waiter = Thread.currentThread();
-                    }
-                }
-                else if (waiting)
+                else if ((s & WAITER) == 0)
+                    U.compareAndSetInt(this, LOCKSTATE, s, s | WAITER);
+                else if ((w = waiter) == null)
+                    U.compareAndSetObject(this, WAITERTHREAD, null, current);
+                else if (w == current)
                     LockSupport.park(this);
             }
         }
@@ -3289,6 +3285,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         private static final Unsafe U = Unsafe.getUnsafe();
         private static final long LOCKSTATE
                 = U.objectFieldOffset(TreeBin.class, "lockState");
+        private static final long WAITERTHREAD
+                = U.objectFieldOffset(TreeBin.class, "waiter");
     }
 
     /* ----------------Table Traversal -------------- */

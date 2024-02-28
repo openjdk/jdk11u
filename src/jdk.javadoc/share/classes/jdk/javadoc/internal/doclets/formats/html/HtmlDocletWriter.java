@@ -29,6 +29,7 @@ import jdk.javadoc.internal.doclets.formats.html.markup.Head;
 import jdk.javadoc.internal.doclets.formats.html.markup.TableHeader;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -888,7 +889,7 @@ public class HtmlDocletWriter {
         return getDocLink(context, typeElement, element, label, strong, false);
     }
 
-   /**
+    /**
      * Return the link for the given member.
      *
      * @param context the id of the context where the link will be printed.
@@ -908,22 +909,26 @@ public class HtmlDocletWriter {
 
     public Content getDocLink(LinkInfoImpl.Kind context, TypeElement typeElement, Element element,
             Content label, boolean strong, boolean isProperty) {
-        if (! (utils.isIncluded(element) || utils.isLinkable(typeElement))) {
+        if (!utils.isLinkable(typeElement, element)) {
             return label;
-        } else if (utils.isExecutableElement(element)) {
+        }
+
+        if (utils.isExecutableElement(element)) {
             ExecutableElement ee = (ExecutableElement)element;
             return getLink(new LinkInfoImpl(configuration, context, typeElement)
                 .label(label)
                 .where(links.getName(getAnchor(ee, isProperty)))
                 .strong(strong));
-        } else if (utils.isVariableElement(element) || utils.isTypeElement(element)) {
+        }
+
+        if (utils.isVariableElement(element) || utils.isTypeElement(element)) {
             return getLink(new LinkInfoImpl(configuration, context, typeElement)
                 .label(label)
                 .where(links.getName(element.getSimpleName().toString()))
                 .strong(strong));
-        } else {
-            return label;
         }
+
+        return label;
     }
 
     /**
@@ -977,7 +982,6 @@ public class HtmlDocletWriter {
     }
 
     public Content seeTagToContent(Element element, DocTree see) {
-
         Kind kind = see.getKind();
         if (!(kind == LINK || kind == SEE || kind == LINK_PLAIN)) {
             return new ContentBuilder();
@@ -1627,7 +1631,8 @@ public class HtmlDocletWriter {
         if (!(lower.startsWith("mailto:")
                 || lower.startsWith("http:")
                 || lower.startsWith("https:")
-                || lower.startsWith("file:"))) {
+                || lower.startsWith("file:")
+                || lower.startsWith("ftp:"))) {
             text = "{@" + (new DocRootTaglet()).getName() + "}/"
                     + redirectPathFromRoot.resolve(text).getPath();
             text = replaceDocRootDir(text);
@@ -2092,5 +2097,21 @@ public class HtmlDocletWriter {
 
     Script getMainBodyScript() {
         return mainBodyScript;
+    }
+
+    /**
+     * Creates the HTML tag if the tag is supported by this specific HTML version
+     * otherwise return the Content instance provided by Supplier ifNotSupported.
+     * @param tag the HTML tag
+     * @param ifSupported create this instance if HTML tag is supported
+     * @param ifNotSupported create this instance if HTML tag is not supported
+     * @return
+     */
+    protected Content createTagIfAllowed(HtmlTag tag, Supplier<Content> ifSupported, Supplier<Content> ifNotSupported) {
+        if (configuration.allowTag(tag)) {
+            return ifSupported.get();
+        } else {
+            return ifNotSupported.get();
+        }
     }
 }

@@ -79,6 +79,8 @@ grant codeBase "jrt:/java.sql.rowset" {
 
 grant codeBase "jrt:/java.xml.crypto" {
     permission java.lang.RuntimePermission
+                   "getStackWalkerWithClassReference";
+    permission java.lang.RuntimePermission
                    "accessClassInPackage.sun.security.util";
     permission java.util.PropertyPermission "*", "read";
     permission java.security.SecurityPermission "putProviderProperty.XMLDSig";
@@ -88,6 +90,8 @@ grant codeBase "jrt:/java.xml.crypto" {
                    "removeProviderProperty.XMLDSig";
     permission java.security.SecurityPermission
                    "com.sun.org.apache.xml.internal.security.register";
+    permission java.security.SecurityPermission
+                   "getProperty.jdk.xml.dsig.hereFunctionSupported";
     permission java.security.SecurityPermission
                    "getProperty.jdk.xml.dsig.secureValidationPolicy";
     permission java.lang.RuntimePermission

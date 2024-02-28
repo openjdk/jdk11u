@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,41 +30,41 @@
  * @run main/othervm FtpURLConnectionLeak
  */
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.URL;
 
 public class FtpURLConnectionLeak {
 
     public static void main(String[] args) throws Exception {
-        FtpServer server = new FtpServer(0);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        FtpServer server = new FtpServer(loopback, 0);
         server.setFileSystemHandler(new CustomFileSystemHandler("/"));
         server.setAuthHandler(new MyAuthHandler());
-        int port = server.getLocalPort();
+        String authority = server.getAuthority();
         server.start();
-        URL url = new URL("ftp://localhost:" + port + "/filedoesNotExist.txt");
-        for (int i = 0; i < 3; i++) {
-            try {
-                InputStream stream = url.openStream();
-            } catch (FileNotFoundException expectedFirstTimeAround) {
-                // should always reach this point since the path does not exist
-            } catch (IOException expected) {
-                System.out.println("caught expected " + expected);
-                int times = 1;
-                do {
-                    // give some time to close the connection...
-                    System.out.println("sleeping... " + times);
-                    Thread.sleep(times * 1000);
-                } while (server.activeClientsCount() > 0 && times++ < 5);
+        URL url = new URL("ftp://" + authority + "/filedoesNotExist.txt");
+        try (server) {
+            for (int i = 0; i < 3; i++) {
+                try {
+                    InputStream stream = url.openStream();
+                } catch (FileNotFoundException expected) {
+                    // should always reach this point since the path does not exist
+                    System.out.println("caught expected " + expected);
+                    int times = 1;
+                    do {
+                        // give some time to close the connection...
+                        System.out.println("sleeping... " + times);
+                        Thread.sleep(times * 1000);
+                    } while (server.activeClientsCount() > 0 && times++ < 5);
 
-                if (server.activeClientsCount() > 0) {
-                    server.killClients();
-                    throw new RuntimeException("URLConnection didn't close the" +
-                            " FTP connection on FileNotFoundException");
+                    if (server.activeClientsCount() > 0) {
+                        server.killClients();
+                        throw new RuntimeException("URLConnection didn't close the" +
+                                " FTP connection on FileNotFoundException");
+                    }
                 }
-            } finally {
-                server.terminate();
             }
         }
     }

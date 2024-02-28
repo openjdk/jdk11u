@@ -22,6 +22,7 @@
  */
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -38,13 +39,13 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import jdk.testlibrary.SimpleSSLContext;
+import jdk.test.lib.net.SimpleSSLContext;
 
 /**
  * @test
  * @bug 8207966
- * @library /lib/testlibrary
- * @build jdk.testlibrary.SimpleSSLContext
+ * @library /test/lib
+ * @build jdk.test.lib.net.SimpleSSLContext
  * @run main/othervm -Djdk.httpclient.enableAllMethodRetry
  *                   -Djdk.tls.acknowledgeCloseNotify=true UnknownBodyLengthTest plain false
  * @run main/othervm -Djdk.httpclient.enableAllMethodRetry
@@ -72,7 +73,7 @@ public class UnknownBodyLengthTest {
                          : ServerSocketFactory.getDefault();
         ss = factory.createServerSocket();
         ss.setReuseAddress(true);
-        ss.bind(new InetSocketAddress("127.0.0.1", 0));
+        ss.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         System.out.println("ServerSocket = " + ss.getClass() + " " + ss);
         port = ss.getLocalPort();
         clientURL = (useSSL ? "https" : "http") + "://localhost:"

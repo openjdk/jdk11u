@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,9 +23,14 @@
 
 /*
  * @test
- * @bug 6543940 6868865
+ * @bug 6543940 6868865 8217375
  * @summary Exception thrown when signing a jarfile in java 1.5
  * @library /test/lib
+ */
+/*
+ * See also PreserveRawManifestEntryAndDigest.java for tests with arbitrarily
+ * formatted individual sections in addition the the main attributes tested
+ * here.
  */
 
 import jdk.test.lib.SecurityTools;
@@ -44,8 +49,14 @@ public class OldSig {
         JarUtils.updateJarFile(Path.of("B.jar"), Path.of("."),
                 Path.of("B.class"));
 
-        SecurityTools.jarsigner("-keystore " + src.resolve("JarSigning.keystore")
-                + " -storepass bbbbbb -digestalg SHA1 B.jar c");
-        SecurityTools.jarsigner("-verify B.jar");
+        String ksArgs = "-keystore " + src.resolve("JarSigning.keystore")
+                + " -storepass bbbbbb";
+        String propArgs = " -J-Djava.security.properties="
+                + src.resolve("OldSig.props");
+        SecurityTools.jarsigner(ksArgs + " -digestalg SHA1 B.jar c");
+        SecurityTools.jarsigner("-verify B.jar").shouldHaveExitValue(0);
+        SecurityTools.jarsigner("-verify " + ksArgs + propArgs
+                + " -verbose B.jar c")
+                .stdoutShouldMatch("^smk .* B[.]class$").shouldHaveExitValue(0);
     }
 }

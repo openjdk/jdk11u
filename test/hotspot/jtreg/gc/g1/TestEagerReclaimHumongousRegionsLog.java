@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,6 +21,8 @@
  * questions.
  */
 
+package gc.g1;
+
 /*
  * @test TestEagerReclaimHumongousRegionsLog
  * @summary Check that G1 reports humongous eager reclaim statistics correctly.
@@ -31,18 +33,14 @@
  *          java.management
  * @build sun.hotspot.WhiteBox
  * @run driver ClassFileInstaller sun.hotspot.WhiteBox
- * @run driver TestEagerReclaimHumongousRegionsLog
+ * @run driver gc.g1.TestEagerReclaimHumongousRegionsLog
  */
 
 import sun.hotspot.WhiteBox;
 
 import java.util.Arrays;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import jdk.test.lib.Asserts;
 
-import jdk.test.lib.Platform;
 import jdk.test.lib.process.OutputAnalyzer;
 import jdk.test.lib.process.ProcessTools;
 
@@ -51,7 +49,7 @@ public class TestEagerReclaimHumongousRegionsLog {
     private static final String LogSeparator = ": ";
 
     public static void runTest() throws Exception {
-        final String[] arguments = {
+        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
             "-Xbootclasspath/a:.",
             "-XX:+UnlockExperimentalVMOptions",
             "-XX:+UnlockDiagnosticVMOptions",
@@ -61,10 +59,7 @@ public class TestEagerReclaimHumongousRegionsLog {
             "-Xms128M",
             "-Xmx128M",
             "-Xlog:gc+phases=trace,gc+heap=info",
-            GCTest.class.getName()
-            };
-
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(arguments);
+            GCTest.class.getName());
         OutputAnalyzer output = new OutputAnalyzer(pb.start());
 
         output.shouldHaveExitValue(0);

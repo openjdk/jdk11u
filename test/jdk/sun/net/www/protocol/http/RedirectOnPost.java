@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2016, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,9 +24,8 @@
 /**
  * @test
  * @library /test/lib
- * @library /lib/testlibrary/
  * @modules jdk.httpserver
- * @build jdk.testlibrary.SimpleSSLContext
+ * @build jdk.test.lib.net.SimpleSSLContext
  * @compile RedirectOnPost.java
  * @run main/othervm RedirectOnPost
  * @bug 8029127
@@ -39,7 +38,7 @@ import java.util.*;
 import com.sun.net.httpserver.*;
 import java.util.concurrent.*;
 import javax.net.ssl.*;
-import jdk.testlibrary.SimpleSSLContext;
+import jdk.test.lib.net.SimpleSSLContext;
 import jdk.test.lib.net.URIBuilder;
 
 public class RedirectOnPost {
@@ -166,7 +165,8 @@ public class RedirectOnPost {
     private static HttpServer getHttpServer(ExecutorService execs)
         throws Exception
     {
-        InetSocketAddress inetAddress = new InetSocketAddress(0);
+        InetSocketAddress inetAddress = new InetSocketAddress(
+                InetAddress.getLoopbackAddress(), 0);
         HttpServer testServer = HttpServer.create(inetAddress, 15);
         int port = testServer.getAddress().getPort();
         testServer.setExecutor(execs);
@@ -181,7 +181,8 @@ public class RedirectOnPost {
     )
         throws Exception
     {
-        InetSocketAddress inetAddress = new InetSocketAddress(0);
+        InetSocketAddress inetAddress = new InetSocketAddress(
+                InetAddress.getLoopbackAddress(), 0);
         HttpsServer testServer = HttpsServer.create(inetAddress, 15);
         int port = testServer.getAddress().getPort();
         testServer.setExecutor(execs);

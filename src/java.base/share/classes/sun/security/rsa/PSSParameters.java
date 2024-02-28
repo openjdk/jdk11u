@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -99,11 +99,16 @@ public final class PSSParameters extends AlgorithmParametersSpi {
             } else if (d.isContextSpecific((byte) 0x01)) {
                 // mgf algid
                 AlgorithmId val = AlgorithmId.parse(d.data.getDerValue());
-                if (!val.getOID().equals(AlgorithmId.mgf1_oid)) {
+                if (!val.getOID().equals(AlgorithmId.MGF1_oid)) {
                     throw new IOException("Only MGF1 mgf is supported");
                 }
+
+                byte[] encodedParams = val.getEncodedParams();
+                if (encodedParams == null) {
+                    throw new IOException("Missing MGF1 parameters");
+                }
                 AlgorithmId params = AlgorithmId.parse(
-                    new DerValue(val.getEncodedParams()));
+                        new DerValue(encodedParams));
                 String mgfDigestName = params.getName();
                 switch (mgfDigestName) {
                 case "SHA-1":
@@ -242,7 +247,7 @@ public final class PSSParameters extends AlgorithmParametersSpi {
 
         if (!mgfDigestId.getOID().equals(AlgorithmId.SHA_oid)) {
             tmp2 = new DerOutputStream();
-            tmp2.putOID(AlgorithmId.mgf1_oid);
+            tmp2.putOID(AlgorithmId.MGF1_oid);
             mgfDigestId.encode(tmp2);
             tmp3 = new DerOutputStream();
             tmp3.write(DerValue.tag_Sequence, tmp2);

@@ -25,6 +25,14 @@
 
 package jdk.javadoc.internal.doclets.formats.html;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.Writer;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.FileSystems;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.*;
 
 import javax.lang.model.element.ModuleElement;
@@ -202,41 +210,71 @@ public class HtmlDoclet extends AbstractDoclet {
             f = DocFile.createFileForOutput(configuration, DocPaths.RESOURCES.resolve(DocPaths.X_IMG));
             f.copyResource(DOCLET_RESOURCES.resolve(DocPaths.X_IMG), true, false);
             copyJqueryFiles();
+
+            f = DocFile.createFileForOutput(configuration, DocPaths.JQUERY_OVERRIDES_CSS);
+            f.copyResource(DOCLET_RESOURCES.resolve(DocPaths.JQUERY_OVERRIDES_CSS), true, true);
         }
+
+        copyLegalFiles(configuration.createindex);
     }
 
     private void copyJqueryFiles() throws DocletException {
         List<String> files = Arrays.asList(
-                "jquery-3.5.1.js",
-                "jquery-ui.js",
-                "jquery-ui.css",
+                "jquery-3.6.1.min.js",
                 "jquery-ui.min.js",
                 "jquery-ui.min.css",
-                "jquery-ui.structure.min.css",
-                "jquery-ui.structure.css",
                 "external/jquery/jquery.js",
                 "jszip/dist/jszip.js",
                 "jszip/dist/jszip.min.js",
                 "jszip-utils/dist/jszip-utils.js",
                 "jszip-utils/dist/jszip-utils.min.js",
                 "jszip-utils/dist/jszip-utils-ie.js",
-                "jszip-utils/dist/jszip-utils-ie.min.js",
-                "images/ui-bg_glass_65_dadada_1x400.png",
-                "images/ui-icons_454545_256x240.png",
-                "images/ui-bg_glass_95_fef1ec_1x400.png",
-                "images/ui-bg_glass_75_dadada_1x400.png",
-                "images/ui-bg_highlight-soft_75_cccccc_1x100.png",
-                "images/ui-icons_888888_256x240.png",
-                "images/ui-icons_2e83ff_256x240.png",
-                "images/ui-icons_cd0a0a_256x240.png",
-                "images/ui-bg_glass_55_fbf9ee_1x400.png",
-                "images/ui-icons_222222_256x240.png",
-                "images/ui-bg_glass_75_e6e6e6_1x400.png");
+                "jszip-utils/dist/jszip-utils-ie.min.js");
         DocFile f;
         for (String file : files) {
             DocPath filePath = DocPaths.JQUERY_FILES.resolve(file);
             f = DocFile.createFileForOutput(configuration, filePath);
             f.copyResource(DOCLET_RESOURCES.resolve(filePath), true, false);
+        }
+    }
+
+    private void copyLegalFiles(boolean includeJQuery) throws DocletException {
+        Path legalNoticesDir;
+        String legalNotices = configuration.legalnotices;
+        switch (legalNotices) {
+            case "":
+            case "default" :
+                Path javaHome = FileSystems.getDefault().getPath(System.getProperty("java.home"));
+                legalNoticesDir = javaHome.resolve("legal").resolve(getClass().getModule().getName());
+                break;
+            case "none":
+                return;
+            default:
+                try {
+                    legalNoticesDir = FileSystems.getDefault().getPath(legalNotices);
+                } catch (InvalidPathException e) {
+                    messages.error("doclet.Error_invalid_path_for_legal_notices",
+                            legalNotices, e.getMessage());
+                    return;
+                }
+        }
+
+        if (Files.exists(legalNoticesDir)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(legalNoticesDir)) {
+                for (Path entry: ds) {
+                    if (!Files.isRegularFile(entry)) {
+                        continue;
+                    }
+                    if (entry.getFileName().toString().startsWith("jquery") && !includeJQuery) {
+                        continue;
+                    }
+                    DocPath filePath = DocPaths.LEGAL.resolve(entry.getFileName().toString());
+                    DocFile df = DocFile.createFileForOutput(configuration, filePath);
+                    df.copyFile(DocFile.createFileForInput(configuration, entry));
+                }
+            } catch (IOException e) {
+                messages.error("doclet.Error_copying_legal_notices", e);
+            }
         }
     }
 

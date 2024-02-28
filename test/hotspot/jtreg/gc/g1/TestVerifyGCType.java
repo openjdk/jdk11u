@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,6 +21,8 @@
  * questions.
  */
 
+package gc.g1;
+
 /*
  * @test TestVerifyGCType
  * @summary Test the VerifyGCType flag to ensure basic functionality.
@@ -29,14 +31,13 @@
  * @library /test/lib
  * @build sun.hotspot.WhiteBox
  * @run driver ClassFileInstaller sun.hotspot.WhiteBox
- * @run driver TestVerifyGCType
+ * @run driver gc.g1.TestVerifyGCType
  */
 
 import java.util.ArrayList;
 import java.util.Collections;
 
 import jdk.test.lib.Asserts;
-import jdk.test.lib.Utils;
 import jdk.test.lib.process.OutputAnalyzer;
 import jdk.test.lib.process.ProcessTools;
 import sun.hotspot.WhiteBox;
@@ -153,8 +154,7 @@ public class TestVerifyGCType {
 
         basicOpts.add(TriggerGCs.class.getName());
 
-        ProcessBuilder procBuilder =  ProcessTools.createJavaProcessBuilder(basicOpts.toArray(
-                                                                            new String[basicOpts.size()]));
+        ProcessBuilder procBuilder =  ProcessTools.createJavaProcessBuilder(basicOpts);
         OutputAnalyzer analyzer = new OutputAnalyzer(procBuilder.start());
         return analyzer;
     }

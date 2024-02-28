@@ -31,7 +31,9 @@
  * @modules java.management
  *          jdk.jartool/sun.tools.jar
  * @build HelloString
- * @run main InvalidFileFormat
+ * @run driver InvalidFileFormat
+ * @run main/othervm -XX:+UseStringDeduplication InvalidFileFormat
+ * @run main/othervm -XX:-CompactStrings InvalidFileFormat
  */
 
 import jdk.test.lib.process.OutputAnalyzer;

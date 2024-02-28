@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2002, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1252,7 +1252,7 @@ final class DirectAudioDevice extends AbstractMixer {
         }
 
         @Override
-        public synchronized void setMicrosecondPosition(long microseconds) {
+        public void setMicrosecondPosition(long microseconds) {
             if (Printer.trace) Printer.trace("> DirectClip: setMicrosecondPosition: " + microseconds);
 
             long frames = Toolkit.micros2frames(getFormat(), microseconds);
@@ -1377,8 +1377,9 @@ final class DirectAudioDevice extends AbstractMixer {
                     }
                 }
                 while (doIO && thread == curThread) {
-                    if (newFramePosition >= 0) {
-                        clipBytePosition = newFramePosition * frameSize;
+                    int npf = newFramePosition; // copy into local variable
+                    if (npf >= 0) {
+                        clipBytePosition = npf * frameSize;
                         newFramePosition = -1;
                     }
                     int endFrame = getFrameLength() - 1;

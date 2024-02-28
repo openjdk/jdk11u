@@ -190,11 +190,7 @@ bool PSMarkSweep::invoke_no_policy(bool clear_all_softrefs) {
     CodeCache::gc_prologue();
     BiasedLocking::preserve_marks();
 
-    // Capture metadata size before collection for sizing.
-    size_t metadata_prev_used = MetaspaceUtils::used_bytes();
-
-    size_t old_gen_prev_used = old_gen->used_in_bytes();
-    size_t young_gen_prev_used = young_gen->used_in_bytes();
+    const PreGCValues pre_gc_values(heap);
 
     allocate_stacks();
 
@@ -351,9 +347,9 @@ bool PSMarkSweep::invoke_no_policy(bool clear_all_softrefs) {
       accumulated_time()->stop();
     }
 
-    young_gen->print_used_change(young_gen_prev_used);
-    old_gen->print_used_change(old_gen_prev_used);
-    MetaspaceUtils::print_metaspace_change(metadata_prev_used);
+    young_gen->print_used_change(pre_gc_values.young_gen_used());
+    old_gen->print_used_change(pre_gc_values.old_gen_used());
+    MetaspaceUtils::print_metaspace_change(pre_gc_values.metaspace_sizes());
 
     // Track memory usage and detect low memory
     MemoryService::track_memory_usage();
@@ -538,9 +534,10 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
 
     ref_processor()->setup_policy(clear_all_softrefs);
     ReferenceProcessorPhaseTimes pt(_gc_timer, ref_processor()->max_num_queues());
+    BarrierEnqueueDiscoveredFieldClosure enqueue;
     const ReferenceProcessorStats& stats =
       ref_processor()->process_discovered_references(
-        is_alive_closure(), mark_and_push_closure(), follow_stack_closure(), NULL, &pt);
+        is_alive_closure(), mark_and_push_closure(), &enqueue, follow_stack_closure(), NULL, &pt);
     gc_tracer()->report_gc_reference_stats(stats);
     pt.print_all_references();
   }

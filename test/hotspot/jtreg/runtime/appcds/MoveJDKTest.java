@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,20 +25,18 @@
 /*
  * @test
  * @summary Test that CDS still works when the JDK is moved to a new directory
+ * @bug 8272345
  * @requires vm.cds
- * @requires os.family == "linux"
+ * @requires vm.flagless
+ * @comment This test doesn't work on Windows because it depends on symlinks
+ * @requires os.family != "windows"
  * @library /test/lib
  * @modules java.base/jdk.internal.misc
  *          java.management
  *          jdk.jartool/sun.tools.jar
  * @compile test-classes/Hello.java
- * @run main MoveJDKTest
+ * @run driver MoveJDKTest
  */
-
-// This test works only on Linux because it depends on symlinks and the name of the hotspot DLL (libjvm.so).
-// It probably doesn't work on Windows.
-// TODO: change libjvm.so to libjvm.dylib on MacOS, before adding "@requires os.family == mac"
-// TODO: test on solaris, before adding "@requires os.family == solaris"
 
 import java.io.File;
 import java.nio.file.Files;
@@ -57,7 +55,8 @@ public class MoveJDKTest {
         String jsaOpt = "-XX:SharedArchiveFile=" + jsaFile;
         {
             ProcessBuilder pb = makeBuilder(java_home_src + "/bin/java", "-Xshare:dump", jsaOpt);
-            TestCommon.executeAndLog(pb, "dump");
+            TestCommon.executeAndLog(pb, "dump")
+                      .shouldHaveExitValue(0);
         }
         {
             ProcessBuilder pb = makeBuilder(java_home_src + "/bin/java",
@@ -66,6 +65,7 @@ public class MoveJDKTest {
                                             "-Xlog:class+path=info",
                                             "-version");
             OutputAnalyzer out = TestCommon.executeAndLog(pb, "exec-src");
+            out.shouldHaveExitValue(0);
             out.shouldNotContain("shared class paths mismatch");
             out.shouldNotContain("BOOT classpath mismatch");
         }
@@ -81,6 +81,7 @@ public class MoveJDKTest {
                                             "-Xlog:class+path=info",
                                             "-version");
             OutputAnalyzer out = TestCommon.executeAndLog(pb, "exec-dst");
+            out.shouldHaveExitValue(0);
             out.shouldNotContain("shared class paths mismatch");
             out.shouldNotContain("BOOT classpath mismatch");
         }
@@ -94,7 +95,8 @@ public class MoveJDKTest {
                                             "-Xshare:dump",
                                             dumptimeBootAppendOpt,
                                             jsaOpt);
-            TestCommon.executeAndLog(pb, "dump");
+            TestCommon.executeAndLog(pb, "dump")
+                      .shouldHaveExitValue(0);
         }
         {
             String runtimeBootAppendOpt = dumptimeBootAppendOpt + System.getProperty("path.separator") + helloJar;
@@ -105,6 +107,7 @@ public class MoveJDKTest {
                                             "-Xlog:class+path=info",
                                             "-version");
             OutputAnalyzer out = TestCommon.executeAndLog(pb, "exec-dst");
+            out.shouldHaveExitValue(0);
             out.shouldNotContain("shared class paths mismatch");
             out.shouldNotContain("BOOT classpath mismatch");
         }
@@ -122,6 +125,7 @@ public class MoveJDKTest {
                 throw new RuntimeException("Cannot create directory: " + dst);
             }
         }
+        final String jvmLib = System.mapLibraryName("jvm");
         for (String child : src.list()) {
             if (child.equals(".") || child.equals("..")) {
                 continue;
@@ -133,7 +137,7 @@ public class MoveJDKTest {
                 throw new RuntimeException("Already exists: " + child_dst);
             }
             if (child_src.isFile()) {
-                if (child.equals("libjvm.so") || child.equals("java")) {
+                if (child.equals(jvmLib) || child.equals("java")) {
                     Files.copy(child_src.toPath(), /* copy data to -> */ child_dst.toPath());
                 } else {
                     Files.createSymbolicLink(child_dst.toPath(),  /* link to -> */ child_src.toPath());

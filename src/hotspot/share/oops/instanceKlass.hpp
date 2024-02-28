@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -77,7 +77,6 @@ public:
   virtual void do_field(fieldDescriptor* fd) = 0;
 };
 
-#ifndef PRODUCT
 // Print fields.
 // If "obj" argument to constructor is NULL, prints static fields, otherwise prints non-static fields.
 class FieldPrinter: public FieldClosure {
@@ -87,7 +86,6 @@ class FieldPrinter: public FieldClosure {
    FieldPrinter(outputStream* st, oop obj = NULL) : _obj(obj), _st(st) {}
    void do_field(fieldDescriptor* fd);
 };
-#endif  // !PRODUCT
 
 // Describes where oops are located in instances of this klass.
 class OopMapBlock {
@@ -738,9 +736,18 @@ public:
   }
 
 #if INCLUDE_JVMTI
-  // Redefinition locking.  Class can only be redefined by one thread at a time.
-  bool is_being_redefined() const          { return _is_being_redefined; }
-  void set_is_being_redefined(bool value)  { _is_being_redefined = value; }
+  // The flag is in access_flags so that it can be set and reset using atomic
+  // operations, and not be reset by other misc_flag settings.
+  bool is_being_redefined() const          {
+    return _access_flags.is_being_redefined();
+  }
+  void set_is_being_redefined(bool value)  {
+    if (value) {
+      _access_flags.set_is_being_redefined();
+    } else {
+      _access_flags.clear_is_being_redefined();
+    }
+  }
 
   // RedefineClasses() support for previous versions:
   void add_previous_version(InstanceKlass* ik, int emcp_method_count);
@@ -854,14 +861,6 @@ public:
   JvmtiCachedClassFieldMap* jvmti_cached_class_field_map() const {
     return _jvmti_cached_class_field_map;
   }
-
-#if INCLUDE_CDS
-  void set_archived_class_data(JvmtiCachedClassFileData* data) {
-    _cached_class_file = data;
-  }
-
-  JvmtiCachedClassFileData * get_archived_class_data();
-#endif // INCLUDE_CDS
 #else // INCLUDE_JVMTI
 
   static void purge_previous_versions(InstanceKlass* ik) { return; };
@@ -1260,11 +1259,7 @@ public:
 
 private:
   // initialization state
-#ifdef ASSERT
   void set_init_state(ClassState state);
-#else
-  void set_init_state(ClassState state) { _init_state = (u1)state; }
-#endif
   void set_rewritten()                  { _misc_flags |= _misc_rewritten; }
   void set_init_thread(Thread *thread)  { _init_thread = thread; }
 
@@ -1275,6 +1270,8 @@ private:
   bool idnum_can_increment() const      { return has_been_redefined(); }
   inline jmethodID* methods_jmethod_ids_acquire() const;
   inline void release_set_methods_jmethod_ids(jmethodID* jmeths);
+  // This nulls out jmethodIDs for all methods in 'klass'
+  static void clear_jmethod_ids(InstanceKlass* klass);
 
   // Lock during initialization
 public:
@@ -1291,8 +1288,6 @@ private:
   void initialize_impl                           (TRAPS);
   void initialize_super_interfaces               (TRAPS);
   void eager_initialize_impl                     ();
-  /* jni_id_for_impl for jfieldID only */
-  JNIid* jni_id_for_impl                         (int offset);
 
   // Returns the array class for the n'th dimension
   Klass* array_klass_impl(bool or_null, int n, TRAPS);
@@ -1339,16 +1334,14 @@ public:
 
  public:
   // Printing
-#ifndef PRODUCT
   void print_on(outputStream* st) const;
-#endif
   void print_value_on(outputStream* st) const;
 
   void oop_print_value_on(oop obj, outputStream* st);
 
-#ifndef PRODUCT
   void oop_print_on      (oop obj, outputStream* st);
 
+#ifndef PRODUCT
   void print_dependent_nmethods(bool verbose = false);
   bool is_dependent_nmethod(nmethod* nm);
 #endif

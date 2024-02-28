@@ -121,7 +121,11 @@ AC_DEFUN([FLAGS_SETUP_DEBUG_SYMBOLS],
     # -g0 enables debug symbols without disabling inlining.
     CFLAGS_DEBUG_SYMBOLS="-g0 -xs"
   elif test "x$TOOLCHAIN_TYPE" = xxlc; then
-    CFLAGS_DEBUG_SYMBOLS="-g"
+    if test "x$XLC_USES_CLANG" = xtrue; then
+      CFLAGS_DEBUG_SYMBOLS="-g1"
+    else
+      CFLAGS_DEBUG_SYMBOLS="-g"
+    fi
   elif test "x$TOOLCHAIN_TYPE" = xmicrosoft; then
     CFLAGS_DEBUG_SYMBOLS="-Z7 -d2Zi+"
   fi
@@ -160,6 +164,7 @@ AC_DEFUN([FLAGS_SETUP_WARNINGS],
   case "${TOOLCHAIN_TYPE}" in
     microsoft)
       DISABLE_WARNING_PREFIX="-wd"
+      BUILD_CC_DISABLE_WARNING_PREFIX="-wd"
       CFLAGS_WARNINGS_ARE_ERRORS="-WX"
       ;;
     solstudio)
@@ -168,8 +173,8 @@ AC_DEFUN([FLAGS_SETUP_WARNINGS],
       ;;
     gcc)
       DISABLE_WARNING_PREFIX="-Wno-"
-      CFLAGS_WARNINGS_ARE_ERRORS="-Werror"
       BUILD_CC_DISABLE_WARNING_PREFIX="-Wno-"
+      CFLAGS_WARNINGS_ARE_ERRORS="-Werror"
       ;;
     clang)
       DISABLE_WARNING_PREFIX="-Wno-"
@@ -528,10 +533,10 @@ AC_DEFUN([FLAGS_SETUP_CFLAGS_HELPER],
     fi
 
   elif test "x$TOOLCHAIN_TYPE" = xxlc; then
-    TOOLCHAIN_CFLAGS_JDK="-qchars=signed -qfullpath -qsaveopt"  # add on both CFLAGS
-    TOOLCHAIN_CFLAGS_JVM="-qtune=balanced \
-        -qalias=noansi -qstrict -qtls=default -qlanglvl=c99vla \
-        -qlanglvl=noredefmac -qnortti -qnoeh -qignerrno"
+    # set -qtbtable=full for a better traceback table/better stacks in hs_err when xlc16 is used
+    TOOLCHAIN_CFLAGS_JDK="-qtbtable=full -qchars=signed -qfullpath -qsaveopt -qstackprotect"  # add on both CFLAGS
+    TOOLCHAIN_CFLAGS_JVM="-qtbtable=full -qtune=balanced \
+        -qalias=noansi -qstrict -qtls=default -qnortti -qnoeh -qignerrno -qstackprotect"
   elif test "x$TOOLCHAIN_TYPE" = xmicrosoft; then
     TOOLCHAIN_CFLAGS_JVM="-nologo -MD -MP"
     TOOLCHAIN_CFLAGS_JDK="-nologo -MD -Zc:wchar_t-"
@@ -583,6 +588,11 @@ AC_DEFUN([FLAGS_SETUP_CFLAGS_HELPER],
         OS_CFLAGS="$OS_CFLAGS \
             -DMAC_OS_X_VERSION_MAX_ALLOWED=$MACOSX_VERSION_MAX_NODOTS"
     fi
+  fi
+
+  OS_CFLAGS="$OS_CFLAGS -DLIBC=$OPENJDK_TARGET_LIBC"
+  if test "x$OPENJDK_TARGET_LIBC" = xmusl; then
+    OS_CFLAGS="$OS_CFLAGS -DMUSL_LIBC"
   fi
 
   # Where does this really belong??
@@ -803,6 +813,18 @@ AC_DEFUN([FLAGS_SETUP_CFLAGS_CPU_DEP],
     $1_WARNING_CFLAGS_JVM="-Wno-format-zero-length -Wtype-limits -Wuninitialized"
   fi
 
+  if test "x$TOOLCHAIN_TYPE" = xmicrosoft && test "x$ENABLE_REPRODUCIBLE_BUILD" = xtrue; then
+    # Enabling deterministic creates warnings if __DATE__ or __TIME__ are
+    # used, and since we are, silence that warning.
+    REPRODUCIBLE_CFLAGS="-experimental:deterministic -wd5048"
+    FLAGS_COMPILER_CHECK_ARGUMENTS(ARGUMENT: [${REPRODUCIBLE_CFLAGS}],
+        PREFIX: $3,
+        IF_FALSE: [
+            REPRODUCIBLE_CFLAGS=
+        ]
+    )
+  fi
+
   # Prevent the __FILE__ macro from generating absolute paths into the built
   # binaries. Depending on toolchain, different mitigations are possible.
   # * GCC and Clang of new enough versions have -fmacro-prefix-map.
@@ -821,6 +843,27 @@ AC_DEFUN([FLAGS_SETUP_CFLAGS_CPU_DEP],
               FILE_MACRO_CFLAGS=
           ]
       )
+    elif test "x$TOOLCHAIN_TYPE" = xmicrosoft &&
+        test "x$ENABLE_REPRODUCIBLE_BUILD" = xtrue; then
+      # There is a known issue with the pathmap if the mapping is made to the
+      # empty string. Add a minimal string "s" as prefix to work around this.
+      # PATHMAP_FLAGS is also added to LDFLAGS in flags-ldflags.m4.
+      PATHMAP_FLAGS="-pathmap:${WORKSPACE_ROOT}=s"
+      FILE_MACRO_CFLAGS="$PATHMAP_FLAGS"
+      FLAGS_COMPILER_CHECK_ARGUMENTS(ARGUMENT: [${FILE_MACRO_CFLAGS}],
+          PREFIX: $3,
+          IF_FALSE: [
+              PATHMAP_FLAGS=
+              FILE_MACRO_CFLAGS=
+          ]
+      )
+    fi
+
+    AC_MSG_CHECKING([how to prevent absolute paths in output])
+    if test "x$FILE_MACRO_CFLAGS" != x; then
+      AC_MSG_RESULT([using compiler options])
+    else
+      AC_MSG_RESULT([using relative paths])
     fi
   fi
   AC_SUBST(FILE_MACRO_CFLAGS)
@@ -829,12 +872,13 @@ AC_DEFUN([FLAGS_SETUP_CFLAGS_CPU_DEP],
   CFLAGS_JVM_COMMON="$ALWAYS_CFLAGS_JVM $ALWAYS_DEFINES_JVM \
       $TOOLCHAIN_CFLAGS_JVM ${$1_TOOLCHAIN_CFLAGS_JVM} \
       $OS_CFLAGS $OS_CFLAGS_JVM $CFLAGS_OS_DEF_JVM $DEBUG_CFLAGS_JVM \
-      $WARNING_CFLAGS $WARNING_CFLAGS_JVM $JVM_PICFLAG $FILE_MACRO_CFLAGS"
+      $WARNING_CFLAGS $WARNING_CFLAGS_JVM $JVM_PICFLAG $FILE_MACRO_CFLAGS \
+      $REPRODUCIBLE_CFLAGS"
 
   CFLAGS_JDK_COMMON="$ALWAYS_CFLAGS_JDK $ALWAYS_DEFINES_JDK $TOOLCHAIN_CFLAGS_JDK \
       $OS_CFLAGS $CFLAGS_OS_DEF_JDK $DEBUG_CFLAGS_JDK $DEBUG_OPTIONS_FLAGS_JDK \
       $WARNING_CFLAGS $WARNING_CFLAGS_JDK $DEBUG_SYMBOLS_CFLAGS_JDK \
-      $FILE_MACRO_CFLAGS"
+      $FILE_MACRO_CFLAGS $REPRODUCIBLE_CFLAGS"
 
   # Use ${$2EXTRA_CFLAGS} to block EXTRA_CFLAGS to be added to build flags.
   # (Currently we don't have any OPENJDK_BUILD_EXTRA_CFLAGS, but that might

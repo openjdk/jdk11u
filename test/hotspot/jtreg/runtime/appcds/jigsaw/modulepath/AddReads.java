@@ -29,7 +29,7 @@
  * @modules jdk.compiler
  *          jdk.jartool/sun.tools.jar
  *          jdk.jlink
- * @run main AddReads
+ * @run driver AddReads
  * @summary sanity test the --add-reads option
  */
 
@@ -39,7 +39,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import jdk.test.lib.process.OutputAnalyzer;
-import jdk.testlibrary.ProcessTools;
 import jdk.testlibrary.Asserts;
 
 public class AddReads {

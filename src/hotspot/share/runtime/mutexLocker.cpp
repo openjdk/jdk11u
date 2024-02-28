@@ -88,6 +88,7 @@ Monitor* DirtyCardQ_CBL_mon           = NULL;
 Mutex*   Shared_DirtyCardQ_lock       = NULL;
 Mutex*   MarkStackFreeList_lock       = NULL;
 Mutex*   MarkStackChunkList_lock      = NULL;
+Mutex*   MonitoringSupport_lock       = NULL;
 Mutex*   ParGCRareEvent_lock          = NULL;
 Mutex*   DerivedPointerTableGC_lock   = NULL;
 Monitor* CGCPhaseManager_lock         = NULL;
@@ -140,6 +141,9 @@ Monitor* JfrMsg_lock                  = NULL;
 Mutex*   JfrBuffer_lock               = NULL;
 Mutex*   JfrStream_lock               = NULL;
 Monitor* JfrThreadSampler_lock        = NULL;
+#endif
+#if INCLUDE_CDS && INCLUDE_JVMTI
+Mutex*   CDSClassFileStream_lock      = NULL;
 #endif
 
 #ifndef SUPPORTS_NATIVE_CX8
@@ -222,6 +226,8 @@ void mutex_init() {
     def(MarkStackFreeList_lock     , PaddedMutex  , leaf     ,   true,  Monitor::_safepoint_check_never);
     def(MarkStackChunkList_lock    , PaddedMutex  , leaf     ,   true,  Monitor::_safepoint_check_never);
   }
+  def(MonitoringSupport_lock       , PaddedMutex  , leaf     ,   true,  Monitor::_safepoint_check_never);      // used for serviceability monitoring support
+
 #if INCLUDE_SHENANDOAHGC
   if (UseShenandoahGC) {
     def(SATB_Q_FL_lock             , PaddedMutex  , access,      true,  Monitor::_safepoint_check_never);
@@ -343,6 +349,9 @@ void mutex_init() {
   def(ThreadsSMRDelete_lock        , PaddedMonitor, special,     false, Monitor::_safepoint_check_never);
   def(SharedDecoder_lock           , PaddedMutex  , native,      false, Monitor::_safepoint_check_never);
   def(DCmdFactory_lock             , PaddedMutex  , leaf,        true,  Monitor::_safepoint_check_never);
+#if INCLUDE_CDS && INCLUDE_JVMTI
+  def(CDSClassFileStream_lock      , PaddedMutex  , max_nonleaf, false, Monitor::_safepoint_check_always);
+#endif
 }
 
 GCMutexLocker::GCMutexLocker(Monitor * mutex) {

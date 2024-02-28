@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,6 +37,8 @@
 
 #include "jni.h"
 #include "unittest.hpp"
+
+#include "runtime/thread.inline.hpp"
 
 // Default value for -new-thread option: true on AIX because we run into
 // problems when attempting to initialize the JVM on the primordial thread.
@@ -91,7 +93,14 @@ static int init_jvm(int argc, char **argv, bool disable_error_handling) {
   JavaVM* jvm;
   JNIEnv* env;
 
-  return JNI_CreateJavaVM(&jvm, (void**)&env, &args);
+  int ret = JNI_CreateJavaVM(&jvm, (void**)&env, &args);
+  if (ret == JNI_OK) {
+    // CreateJavaVM leaves WXExec context, while gtests
+    // calls internal functions assuming running in WXWwrite.
+    // Switch to WXWrite once for all test cases.
+    MACOS_AARCH64_ONLY(Thread::current()->enable_wx(WXWrite));
+  }
+  return ret;
 }
 
 class JVMInitializerListener : public ::testing::EmptyTestEventListener {
@@ -216,7 +225,7 @@ static void runUnitTestsInner(int argc, char** argv) {
 
   char* java_home = get_java_home_arg(argc, argv);
   if (java_home == NULL) {
-    fprintf(stderr, "ERROR: You must specify a JDK to use for running the unit tests.\n");
+    fprintf(stderr, "ERROR: You must specify a JDK (-jdk <image>, --jdk=<image> or -jdk:<image>) to use for running the unit tests.\n");
     exit(1);
   }
 #ifndef _WIN32

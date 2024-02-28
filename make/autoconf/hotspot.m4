@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2011, 2018, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # This code is free software; you can redistribute it and/or modify it
@@ -110,7 +110,8 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_VARIANTS],
   AC_MSG_RESULT([$JVM_VARIANTS])
 
   # Check that the selected variants are valid
-  BASIC_GET_NON_MATCHING_VALUES(INVALID_VARIANTS, $JVM_VARIANTS, $VALID_JVM_VARIANTS)
+  UTIL_GET_NON_MATCHING_VALUES(INVALID_VARIANTS, $JVM_VARIANTS, \
+      $VALID_JVM_VARIANTS)
   if test "x$INVALID_VARIANTS" != x; then
     AC_MSG_NOTICE([Unknown variant(s) specified: "$INVALID_VARIANTS"])
     AC_MSG_NOTICE([The available JVM variants are: "$VALID_JVM_VARIANTS"])
@@ -119,9 +120,11 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_VARIANTS],
 
   # All "special" variants share the same output directory ("server")
   VALID_MULTIPLE_JVM_VARIANTS="server client minimal"
-  BASIC_GET_NON_MATCHING_VALUES(INVALID_MULTIPLE_VARIANTS, $JVM_VARIANTS, $VALID_MULTIPLE_JVM_VARIANTS)
-  if  test "x$INVALID_MULTIPLE_VARIANTS" != x && test "x$BUILDING_MULTIPLE_JVM_VARIANTS" = xtrue; then
-    AC_MSG_ERROR([You cannot build multiple variants with anything else than $VALID_MULTIPLE_JVM_VARIANTS.])
+  UTIL_GET_NON_MATCHING_VALUES(INVALID_MULTIPLE_VARIANTS, $JVM_VARIANTS, \
+      $VALID_MULTIPLE_JVM_VARIANTS)
+  if  test "x$INVALID_MULTIPLE_VARIANTS" != x && \
+      test "x$BUILDING_MULTIPLE_JVM_VARIANTS" = xtrue; then
+    AC_MSG_ERROR([You can only build multiple variants using these variants: '$VALID_MULTIPLE_JVM_VARIANTS'])
   fi
 
   # The "main" variant is the one used by other libs to link against during the
@@ -162,8 +165,11 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_DTRACE],
 
   DTRACE_DEP_MISSING=false
 
-  AC_MSG_CHECKING([for dtrace tool])
-  if test "x$DTRACE" != "x" && test -x "$DTRACE"; then
+  AC_MSG_CHECKING([for dtrace tool and platform support])
+  if test "x$OPENJDK_TARGET_CPU_ARCH" = "xppc"; then
+    AC_MSG_RESULT([no, $OPENJDK_TARGET_CPU_ARCH])
+    DTRACE_DEP_MISSING=true
+  elif test "x$DTRACE" != "x" && test -x "$DTRACE"; then
     AC_MSG_RESULT([$DTRACE])
   else
     AC_MSG_RESULT([not found, cannot build dtrace])
@@ -274,6 +280,14 @@ AC_DEFUN_ONCE([HOTSPOT_ENABLE_DISABLE_CDS],
     fi
   fi
 
+  # Disable CDS on macos-aarch64
+  if test "x$OPENJDK_TARGET_OS" = "xmacosx" && test "x$OPENJDK_TARGET_CPU" = "xaarch64"; then
+    ENABLE_CDS="false"
+    if test "x$enable_cds" = "xyes"; then
+      AC_MSG_ERROR([CDS is currently not supported on macOS/aarch64. Remove --enable-cds.])
+    fi
+  fi
+
   AC_SUBST(ENABLE_CDS)
 ])
 
@@ -283,7 +297,7 @@ AC_DEFUN_ONCE([HOTSPOT_ENABLE_DISABLE_CDS],
 AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
 [
   # Prettify the VALID_JVM_FEATURES string
-  BASIC_SORT_LIST(VALID_JVM_FEATURES, $VALID_JVM_FEATURES)
+  UTIL_SORT_LIST(VALID_JVM_FEATURES, $VALID_JVM_FEATURES)
 
   # The user can in some cases supply additional jvm features. For the custom
   # variant, this defines the entire variant.
@@ -299,7 +313,7 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
     DISABLED_JVM_FEATURES=`$ECHO $USER_JVM_FEATURE_LIST | $AWK '{ for (i=1; i<=NF; i++) if (match($i, /^-.*/)) printf("%s ", substr($i, 2))}'`
 
     # Verify that the user has provided valid features
-    BASIC_GET_NON_MATCHING_VALUES(INVALID_FEATURES, $JVM_FEATURES $DISABLED_JVM_FEATURES, $VALID_JVM_FEATURES $DEPRECATED_JVM_FEATURES)
+    UTIL_GET_NON_MATCHING_VALUES(INVALID_FEATURES, $JVM_FEATURES $DISABLED_JVM_FEATURES, $VALID_JVM_FEATURES $DEPRECATED_JVM_FEATURES)
     if test "x$INVALID_FEATURES" != x; then
       AC_MSG_NOTICE([Unknown JVM features specified: "$INVALID_FEATURES"])
       AC_MSG_NOTICE([The available JVM features are: "$VALID_JVM_FEATURES"])
@@ -307,12 +321,12 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
     fi
 
     # Check if the user has provided deprecated features
-    BASIC_GET_MATCHING_VALUES(DEPRECATED_FEATURES, $JVM_FEATURES $DISABLED_JVM_FEATURES, $DEPRECATED_JVM_FEATURES)
+    UTIL_GET_MATCHING_VALUES(DEPRECATED_FEATURES, $JVM_FEATURES $DISABLED_JVM_FEATURES, $DEPRECATED_JVM_FEATURES)
     if test "x$DEPRECATED_FEATURES" != x; then
       AC_MSG_WARN([Deprecated JVM features specified (will be ignored): "$DEPRECATED_FEATURES"])
       # Filter out deprecated features
-      BASIC_GET_NON_MATCHING_VALUES(JVM_FEATURES, $JVM_FEATURES, $DEPRECATED_FEATURES)
-      BASIC_GET_NON_MATCHING_VALUES(DISABLED_JVM_FEATURES, $DISABLED_JVM_FEATURES, $DEPRECATED_FEATURES)
+      UTIL_GET_NON_MATCHING_VALUES(JVM_FEATURES, $JVM_FEATURES, $DEPRECATED_FEATURES)
+      UTIL_GET_NON_MATCHING_VALUES(DISABLED_JVM_FEATURES, $DISABLED_JVM_FEATURES, $DEPRECATED_FEATURES)
     fi
 
   fi
@@ -413,7 +427,7 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
     # Only enable jvmci on x86_64, sparcv9 and aarch64
     if test "x$OPENJDK_TARGET_CPU" = "xx86_64" || \
        test "x$OPENJDK_TARGET_CPU" = "xsparcv9" || \
-       test "x$OPENJDK_TARGET_OS-$OPENJDK_TARGET_CPU" = "xlinux-aarch64" ; then
+       test "x$OPENJDK_TARGET_CPU" = "xaarch64" ; then
       AC_MSG_RESULT([yes])
       JVM_FEATURES_jvmci="jvmci"
       INCLUDE_JVMCI="true"
@@ -444,10 +458,11 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
       JVM_FEATURES_graal="graal"
       INCLUDE_GRAAL="true"
     else
-      # By default enable graal build on x64 or where AOT is available.
+      # By default enable graal build on x64/aarch64 or where AOT is available.
       # graal build requires jvmci.
       if test "x$JVM_FEATURES_jvmci" = "xjvmci" && \
           (test "x$OPENJDK_TARGET_CPU" = "xx86_64" || \
+           test "x$OPENJDK_TARGET_CPU" = "xaarch64" || \
            test "x$ENABLE_AOT" = "xtrue") ; then
         AC_MSG_RESULT([yes])
         JVM_FEATURES_graal="graal"
@@ -545,7 +560,7 @@ AC_DEFUN_ONCE([HOTSPOT_SETUP_JVM_FEATURES],
   AC_SUBST(VALID_JVM_FEATURES)
 
   # We don't support --with-jvm-interpreter anymore, use zero instead.
-  BASIC_DEPRECATED_ARG_WITH(jvm-interpreter)
+  UTIL_DEPRECATED_ARG_WITH(jvm-interpreter)
 ])
 
 ###############################################################################
@@ -559,10 +574,10 @@ AC_DEFUN_ONCE([HOTSPOT_FINALIZE_JVM_FEATURES],
     JVM_FEATURES_FOR_VARIANT=${!features_var_name}
 
     # Filter out user-requested disabled features
-    BASIC_GET_NON_MATCHING_VALUES(JVM_FEATURES_FOR_VARIANT, $JVM_FEATURES_FOR_VARIANT, $DISABLED_JVM_FEATURES)
+    UTIL_GET_NON_MATCHING_VALUES(JVM_FEATURES_FOR_VARIANT, $JVM_FEATURES_FOR_VARIANT, $DISABLED_JVM_FEATURES)
 
     # Keep feature lists sorted and free of duplicates
-    BASIC_SORT_LIST(JVM_FEATURES_FOR_VARIANT, $JVM_FEATURES_FOR_VARIANT)
+    UTIL_SORT_LIST(JVM_FEATURES_FOR_VARIANT, $JVM_FEATURES_FOR_VARIANT)
 
     # Update real feature set variable
     eval $features_var_name='"'$JVM_FEATURES_FOR_VARIANT'"'
@@ -575,7 +590,7 @@ AC_DEFUN_ONCE([HOTSPOT_FINALIZE_JVM_FEATURES],
     fi
 
     # Validate features (for configure script errors, not user errors)
-    BASIC_GET_NON_MATCHING_VALUES(INVALID_FEATURES, $JVM_FEATURES_FOR_VARIANT, $VALID_JVM_FEATURES)
+    UTIL_GET_NON_MATCHING_VALUES(INVALID_FEATURES, $JVM_FEATURES_FOR_VARIANT, $VALID_JVM_FEATURES)
     if test "x$INVALID_FEATURES" != x; then
       AC_MSG_ERROR([Internal configure script error. Invalid JVM feature(s): $INVALID_FEATURES])
     fi

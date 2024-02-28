@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2006, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -238,14 +238,14 @@ public class FtpCommandHandler extends Thread {
             return;
         }
         try {
-            if (pasv == null)
-                pasv = new ServerSocket(0);
-            int port = pasv.getLocalPort();
             InetAddress rAddress = cmd.getLocalAddress();
             if (rAddress instanceof Inet6Address) {
                 out.println("500 PASV illegal over IPv6 addresses, use EPSV.");
                 return;
             }
+            if (pasv == null)
+                pasv = new ServerSocket(0, 0, rAddress);
+            int port = pasv.getLocalPort();
             byte[] a = rAddress.getAddress();
             out.println("227 Entering Passive Mode " + a[0] + "," + a[1] + "," + a[2] + "," + a[3] + "," +
                         (port >> 8) + "," + (port & 0xff) );
@@ -266,7 +266,7 @@ public class FtpCommandHandler extends Thread {
         }
         try {
             if (pasv == null)
-                pasv = new ServerSocket(0);
+                pasv = new ServerSocket(0, 0, parent.getInetAddress());
             int port = pasv.getLocalPort();
             out.println("229 Entering Extended Passive Mode (|||" + port + "|)");
         } catch (IOException e) {
@@ -442,8 +442,14 @@ public class FtpCommandHandler extends Thread {
             // cmd.setSoTimeout(2000);
             in = new BufferedReader(new InputStreamReader(cmd.getInputStream()));
             out = new PrintStream(cmd.getOutputStream(), true, "ISO8859_1");
+            // Below corrupted message style was intentional to test 8151586, please
+            // make sure each message line not broken ftp communication (such as for
+            // message line lenght >=4, the 4th char required '-' to allow
+            // implementation thinks that it has seen multi-line reply '###-'
+            // sequence), otherwise it will affect normal ftp tests which depends
+            // on this.
             out.println("---------------------------------\n220 Java FTP test server"
-                    + " (j2se 6.0) ready.\n \n                Please send commands\n"
+                    + " (j2se 6.0) ready.\n \n   -            Please send commands\n"
                     + "-----------------------------\n\n\n");
             out.flush();
             if (auth.authType() == 0) // No auth needed

@@ -31,32 +31,200 @@
 
 #include "hb-subset.h"
 #include "hb-subset-input.hh"
+#include "hb-subset-accelerator.hh"
 
 #include "hb-map.hh"
+#include "hb-bimap.hh"
+#include "hb-set.hh"
+
+namespace OT {
+struct Feature;
+}
+
+struct head_maxp_info_t
+{
+  head_maxp_info_t ()
+      :xMin (0x7FFF), xMax (-0x7FFF), yMin (0x7FFF), yMax (-0x7FFF),
+      maxPoints (0), maxContours (0),
+      maxCompositePoints (0),
+      maxCompositeContours (0),
+      maxComponentElements (0),
+      maxComponentDepth (0),
+      allXMinIsLsb (true) {}
+
+  int xMin;
+  int xMax;
+  int yMin;
+  int yMax;
+  unsigned maxPoints;
+  unsigned maxContours;
+  unsigned maxCompositePoints;
+  unsigned maxCompositeContours;
+  unsigned maxComponentElements;
+  unsigned maxComponentDepth;
+  bool allXMinIsLsb;
+};
+
+typedef struct head_maxp_info_t head_maxp_info_t;
+
+struct contour_point_t
+{
+  void init (float x_ = 0.f, float y_ = 0.f, bool is_end_point_ = false)
+  { flag = 0; x = x_; y = y_; is_end_point = is_end_point_; }
+
+  void transform (const float (&matrix)[4])
+  {
+    float x_ = x * matrix[0] + y * matrix[2];
+          y  = x * matrix[1] + y * matrix[3];
+    x  = x_;
+  }
+  HB_ALWAYS_INLINE
+  void translate (const contour_point_t &p) { x += p.x; y += p.y; }
+
+
+  float x;
+  float y;
+  uint8_t flag;
+  bool is_end_point;
+};
+
+struct contour_point_vector_t : hb_vector_t<contour_point_t>
+{
+  void extend (const hb_array_t<contour_point_t> &a)
+  {
+    unsigned int old_len = length;
+    if (unlikely (!resize (old_len + a.length, false)))
+      return;
+    auto arrayZ = this->arrayZ + old_len;
+    unsigned count = a.length;
+    hb_memcpy (arrayZ, a.arrayZ, count * sizeof (arrayZ[0]));
+  }
+};
+
+namespace OT {
+  struct cff1_subset_accelerator_t;
+  struct cff2_subset_accelerator_t;
+}
 
 struct hb_subset_plan_t
 {
+  HB_INTERNAL hb_subset_plan_t (hb_face_t *,
+                                const hb_subset_input_t *input);
+
+  HB_INTERNAL ~hb_subset_plan_t();
+
   hb_object_header_t header;
 
-  bool drop_hints : 1;
-  bool drop_layout : 1;
-  bool desubroutinize : 1;
+  bool successful;
+  unsigned flags;
+  bool attach_accelerator_data = false;
+  bool force_long_loca = false;
 
-  // For each cp that we'd like to retain maps to the corresponding gid.
-  hb_set_t *unicodes;
+  // The glyph subset
+  hb_map_t *codepoint_to_glyph; // Needs to be heap-allocated
 
-  hb_vector_t<hb_codepoint_t> glyphs;
-  hb_set_t *glyphset;
-
-  hb_map_t *codepoint_to_glyph;
-  hb_map_t *glyph_map;
+  // Old -> New glyph id mapping
+  hb_map_t *glyph_map; // Needs to be heap-allocated
+  hb_map_t *reverse_glyph_map; // Needs to be heap-allocated
 
   // Plan is only good for a specific source/dest so keep them with it
   hb_face_t *source;
+#ifndef HB_NO_SUBSET_CFF
+  // These have to be immediately after source:
+  hb_face_lazy_loader_t<OT::cff1_subset_accelerator_t, 1> cff1_accel;
+  hb_face_lazy_loader_t<OT::cff2_subset_accelerator_t, 2> cff2_accel;
+#endif
+
   hb_face_t *dest;
 
-  bool new_gid_for_codepoint (hb_codepoint_t codepoint,
-                              hb_codepoint_t *new_gid) const
+  unsigned int _num_output_glyphs;
+
+  bool all_axes_pinned;
+  bool pinned_at_default;
+  bool has_seac;
+
+  // whether to insert a catch-all FeatureVariationRecord
+  bool gsub_insert_catch_all_feature_variation_rec;
+  bool gpos_insert_catch_all_feature_variation_rec;
+
+#define HB_SUBSET_PLAN_MEMBER(Type, Name) Type Name;
+#include "hb-subset-plan-member-list.hh"
+#undef HB_SUBSET_PLAN_MEMBER
+
+  //recalculated head/maxp table info after instancing
+  mutable head_maxp_info_t head_maxp_info;
+
+  const hb_subset_accelerator_t* accelerator;
+  hb_subset_accelerator_t* inprogress_accelerator;
+
+ public:
+
+  template<typename T>
+  struct source_table_loader
+  {
+    hb_blob_ptr_t<T> operator () (hb_subset_plan_t *plan)
+    {
+      hb_lock_t lock (plan->accelerator ? &plan->accelerator->sanitized_table_cache_lock : nullptr);
+
+      auto *cache = plan->accelerator ? &plan->accelerator->sanitized_table_cache : &plan->sanitized_table_cache;
+      if (cache
+          && !cache->in_error ()
+          && cache->has (+T::tableTag)) {
+        return hb_blob_reference (cache->get (+T::tableTag).get ());
+      }
+
+      hb::unique_ptr<hb_blob_t> table_blob {hb_sanitize_context_t ().reference_table<T> (plan->source)};
+      hb_blob_t* ret = hb_blob_reference (table_blob.get ());
+
+      if (likely (cache))
+        cache->set (+T::tableTag, std::move (table_blob));
+
+      return ret;
+    }
+  };
+
+  template<typename T>
+  auto source_table() HB_AUTO_RETURN (source_table_loader<T> {} (this))
+
+  bool in_error () const { return !successful; }
+
+  bool check_success(bool success)
+  {
+    successful = (successful && success);
+    return successful;
+  }
+
+  /*
+   * The set of input glyph ids which will be retained in the subset.
+   * Does NOT include ids kept due to retain_gids. You probably want to use
+   * glyph_map/reverse_glyph_map.
+   */
+  inline const hb_set_t *
+  glyphset () const
+  {
+    return &_glyphset;
+  }
+
+  /*
+   * The set of input glyph ids which will be retained in the subset.
+   */
+  inline const hb_set_t *
+  glyphset_gsub () const
+  {
+    return &_glyphset_gsub;
+  }
+
+  /*
+   * The total number of output glyphs in the final subset.
+   */
+  inline unsigned int
+  num_output_glyphs () const
+  {
+    return _num_output_glyphs;
+  }
+
+  inline bool new_gid_for_codepoint (hb_codepoint_t codepoint,
+                                     hb_codepoint_t *new_gid) const
   {
     hb_codepoint_t old_gid = codepoint_to_glyph->get (codepoint);
     if (old_gid == HB_MAP_VALUE_INVALID)
@@ -65,8 +233,8 @@ struct hb_subset_plan_t
     return new_gid_for_old_gid (old_gid, new_gid);
   }
 
-  bool new_gid_for_old_gid (hb_codepoint_t old_gid,
-                            hb_codepoint_t *new_gid) const
+  inline bool new_gid_for_old_gid (hb_codepoint_t old_gid,
+                                   hb_codepoint_t *new_gid) const
   {
     hb_codepoint_t gid = glyph_map->get (old_gid);
     if (gid == HB_MAP_VALUE_INVALID)
@@ -76,27 +244,33 @@ struct hb_subset_plan_t
     return true;
   }
 
-  bool
+  inline bool old_gid_for_new_gid (hb_codepoint_t  new_gid,
+                                   hb_codepoint_t *old_gid) const
+  {
+    hb_codepoint_t gid = reverse_glyph_map->get (new_gid);
+    if (gid == HB_MAP_VALUE_INVALID)
+      return false;
+
+    *old_gid = gid;
+    return true;
+  }
+
+  inline bool
   add_table (hb_tag_t tag,
              hb_blob_t *contents)
   {
-    hb_blob_t *source_blob = source->reference_table (tag);
-    DEBUG_MSG(SUBSET, nullptr, "add table %c%c%c%c, dest %d bytes, source %d bytes",
-              HB_UNTAG(tag),
-              hb_blob_get_length (contents),
-              hb_blob_get_length (source_blob));
-    hb_blob_destroy (source_blob);
+    if (HB_DEBUG_SUBSET)
+    {
+      hb_blob_t *source_blob = source->reference_table (tag);
+      DEBUG_MSG(SUBSET, nullptr, "add table %c%c%c%c, dest %u bytes, source %u bytes",
+                HB_UNTAG(tag),
+                hb_blob_get_length (contents),
+                hb_blob_get_length (source_blob));
+      hb_blob_destroy (source_blob);
+    }
     return hb_face_builder_add_table (dest, tag, contents);
   }
 };
 
-typedef struct hb_subset_plan_t hb_subset_plan_t;
-
-HB_INTERNAL hb_subset_plan_t *
-hb_subset_plan_create (hb_face_t           *face,
-                       hb_subset_input_t   *input);
-
-HB_INTERNAL void
-hb_subset_plan_destroy (hb_subset_plan_t *plan);
 
 #endif /* HB_SUBSET_PLAN_HH */

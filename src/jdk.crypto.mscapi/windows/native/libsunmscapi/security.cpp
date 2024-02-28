@@ -59,6 +59,9 @@
 #define SIGNATURE_EXCEPTION "java/security/SignatureException"
 #define OUT_OF_MEMORY_ERROR "java/lang/OutOfMemoryError"
 
+#define KEYSTORE_LOCATION_CURRENTUSER  0
+#define KEYSTORE_LOCATION_LOCALMACHINE 1
+
 #define SS_CHECK(Status) \
         if (Status != ERROR_SUCCESS) { \
             ThrowException(env, SIGNATURE_EXCEPTION, Status); \
@@ -386,10 +389,10 @@ JNIEXPORT jbyteArray JNICALL Java_sun_security_mscapi_PRNG_generateSeed
 /*
  * Class:     sun_security_mscapi_CKeyStore
  * Method:    loadKeysOrCertificateChains
- * Signature: (Ljava/lang/String;)V
+ * Signature: (Ljava/lang/String;I)V
  */
 JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_loadKeysOrCertificateChains
-  (JNIEnv *env, jobject obj, jstring jCertStoreName)
+  (JNIEnv *env, jobject obj, jstring jCertStoreName, jint jCertStoreLocation)
 {
     /**
      * Certificate in cert store has enhanced key usage extension
@@ -407,7 +410,6 @@ JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_loadKeysOrCertificateC
     char* pszNameString = NULL; // certificate's friendly name
     DWORD cchNameString = 0;
 
-
     __try
     {
         // Open a system certificate store.
@@ -415,8 +417,20 @@ JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_loadKeysOrCertificateC
             == NULL) {
             __leave;
         }
-        if ((hCertStore = ::CertOpenSystemStore(NULL, pszCertStoreName))
-            == NULL) {
+
+        if (jCertStoreLocation == KEYSTORE_LOCATION_CURRENTUSER) {
+            hCertStore = ::CertOpenSystemStore(NULL, pszCertStoreName);
+        }
+        else if (jCertStoreLocation == KEYSTORE_LOCATION_LOCALMACHINE) {
+            hCertStore = ::CertOpenStore(CERT_STORE_PROV_SYSTEM_A, 0, NULL,
+                CERT_SYSTEM_STORE_LOCAL_MACHINE, pszCertStoreName);
+        }
+        else {
+            PP("jCertStoreLocation is not a valid value");
+            __leave;
+        }
+
+        if (hCertStore == NULL) {
 
             ThrowException(env, KEYSTORE_EXCEPTION, GetLastError());
             __leave;
@@ -469,7 +483,7 @@ JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_loadKeysOrCertificateC
             PP("--------------------------");
             // Check if private key available - client authentication certificate
             // must have private key available.
-            HCRYPTPROV hCryptProv = NULL;
+            HCRYPTPROV_OR_NCRYPT_KEY_HANDLE hCryptProv = NULL;
             DWORD dwKeySpec = 0;
             HCRYPTKEY hUserKey = NULL;
             BOOL bCallerFreeProv = FALSE;
@@ -488,7 +502,11 @@ JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_loadKeysOrCertificateC
             else
             {
                 if (bCallerFreeProv == TRUE) {
-                    ::CryptReleaseContext(hCryptProv, NULL); // deprecated
+                    if ((dwKeySpec & CERT_NCRYPT_KEY_SPEC) == CERT_NCRYPT_KEY_SPEC) {
+                        NCryptFreeObject(hCryptProv);
+                    } else {
+                        ::CryptReleaseContext(hCryptProv, NULL); // deprecated
+                    }
                     bCallerFreeProv = FALSE;
                 }
 
@@ -1851,18 +1869,25 @@ JNIEXPORT void JNICALL Java_sun_security_mscapi_CKeyStore_destroyKeyContainer
 /*
  * Class:     sun_security_mscapi_CRSACipher
  * Method:    encryptDecrypt
- * Signature: ([BIJZ)[B
+ * Signature: ([I[BIJZ)[B
  */
 JNIEXPORT jbyteArray JNICALL Java_sun_security_mscapi_CRSACipher_encryptDecrypt
-  (JNIEnv *env, jclass clazz, jbyteArray jData, jint jDataSize, jlong hKey,
+  (JNIEnv *env, jclass clazz, jintArray jResultStatus, jbyteArray jData, jint jDataSize, jlong hKey,
    jboolean doEncrypt)
 {
     jbyteArray result = NULL;
     jbyte* pData = NULL;
+    jbyte* resultData = NULL;
     DWORD dwDataLen = jDataSize;
     DWORD dwBufLen = env->GetArrayLength(jData);
     DWORD i;
     BYTE tmp;
+    BOOL success;
+    DWORD ss = ERROR_SUCCESS;
+    DWORD lastError = ERROR_SUCCESS;
+    DWORD resultLen = 0;
+    DWORD pmsLen = 48;
+    jbyte pmsArr[48] = {0};
 
     __try
     {
@@ -1889,6 +1914,8 @@ JNIEXPORT jbyteArray JNICALL Java_sun_security_mscapi_CRSACipher_encryptDecrypt
                 pData[i] = pData[dwBufLen - i -1];
                 pData[dwBufLen - i - 1] = tmp;
             }
+            resultData = pData;
+            resultLen = dwBufLen;
         } else {
             // convert to little-endian
             for (i = 0; i < dwBufLen / 2; i++) {
@@ -1898,21 +1925,28 @@ JNIEXPORT jbyteArray JNICALL Java_sun_security_mscapi_CRSACipher_encryptDecrypt
             }
 
             // decrypt
-            if (! ::CryptDecrypt((HCRYPTKEY) hKey, 0, TRUE, 0, (BYTE *)pData, //deprecated
-                &dwBufLen)) {
-
-                ThrowException(env, KEY_EXCEPTION, GetLastError());
-                __leave;
+            success = ::CryptDecrypt((HCRYPTKEY) hKey, 0, TRUE, 0, (BYTE *)pData, //deprecated
+                &dwBufLen);
+            lastError = GetLastError();
+            if (success) {
+                ss = ERROR_SUCCESS;
+                resultData = pData;
+                resultLen = dwBufLen;
+            } else {
+                ss = lastError;
+                resultData = pmsArr;
+                resultLen = pmsLen;
             }
+            env->SetIntArrayRegion(jResultStatus, 0, 1, (jint*) &ss);
         }
 
-        // Create new byte array
-        if ((result = env->NewByteArray(dwBufLen)) == NULL) {
+            // Create new byte array
+        if ((result = env->NewByteArray(resultLen)) == NULL) {
             __leave;
         }
 
         // Copy data from native buffer to Java buffer
-        env->SetByteArrayRegion(result, 0, dwBufLen, (jbyte*) pData);
+        env->SetByteArrayRegion(result, 0, resultLen, (jbyte*) resultData);
     }
     __finally
     {

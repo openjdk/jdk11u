@@ -31,7 +31,9 @@
  * @library /test/lib /test/hotspot/jtreg/runtime/appcds
  * @modules java.base/jdk.internal.misc
  * @modules java.management
- * @run main SysDictCrash
+ * @run driver SysDictCrash
+ * @run main/othervm -XX:+UseStringDeduplication SysDictCrash
+ * @run main/othervm -XX:-CompactStrings SysDictCrash
  */
 
 import jdk.test.lib.process.OutputAnalyzer;
@@ -41,22 +43,20 @@ public class SysDictCrash {
     public static void main(String[] args) throws Exception {
         // SharedBaseAddress=0 puts the archive at a very high address on solaris,
         // which provokes the crash.
-        ProcessBuilder dumpPb = ProcessTools.createJavaProcessBuilder(true,
-          TestCommon.makeCommandLineForAppCDS(
+        ProcessBuilder dumpPb = ProcessTools.createTestJvm(
             "-XX:+UseG1GC", "-XX:MaxRAMPercentage=12.5",
             "-cp", ".",
             "-XX:SharedBaseAddress=0", "-XX:SharedArchiveFile=./SysDictCrash.jsa",
             "-Xshare:dump",
-            "-showversion", "-Xlog:cds,cds+hashtables"));
+            "-showversion", "-Xlog:cds,cds+hashtables");
 
         TestCommon.checkDump(TestCommon.executeAndLog(dumpPb, "dump"));
 
-        ProcessBuilder runPb = ProcessTools.createJavaProcessBuilder(true,
-          TestCommon.makeCommandLineForAppCDS(
+        ProcessBuilder runPb = ProcessTools.createTestJvm(
             "-XX:+UseG1GC", "-XX:MaxRAMPercentage=12.5",
             "-XX:SharedArchiveFile=./SysDictCrash.jsa",
             "-Xshare:on",
-            "-version"));
+            "-version");
 
         TestCommon.checkExec(TestCommon.executeAndLog(runPb, "exec"));
     }

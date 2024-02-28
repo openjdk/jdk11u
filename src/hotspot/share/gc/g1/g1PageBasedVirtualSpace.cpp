@@ -232,14 +232,19 @@ private:
   char* volatile _cur_addr;
   char* const _start_addr;
   char* const _end_addr;
-  size_t const _page_size;
+  size_t _page_size;
 public:
   G1PretouchTask(char* start_address, char* end_address, size_t page_size) :
     AbstractGangTask("G1 PreTouch"),
     _cur_addr(start_address),
     _start_addr(start_address),
     _end_addr(end_address),
-    _page_size(page_size) {
+    _page_size(0) {
+#ifdef LINUX
+    _page_size = UseTransparentHugePages ? (size_t)os::vm_page_size(): page_size;
+#else
+    _page_size = page_size;
+#endif
   }
 
   virtual void work(uint worker_id) {
@@ -263,7 +268,7 @@ void G1PageBasedVirtualSpace::pretouch(size_t start_page, size_t size_in_pages, 
   if (pretouch_gang != NULL) {
     size_t num_chunks = MAX2((size_t)1, size_in_pages * _page_size / MAX2(G1PretouchTask::chunk_size(), _page_size));
 
-    uint num_workers = MIN2((uint)num_chunks, pretouch_gang->active_workers());
+    uint num_workers = MIN2((uint)num_chunks, pretouch_gang->total_workers());
     log_debug(gc, heap)("Running %s with %u workers for " SIZE_FORMAT " work units pre-touching " SIZE_FORMAT "B.",
                         cl.name(), num_workers, num_chunks, size_in_pages * _page_size);
     pretouch_gang->run_task(&cl, num_workers);

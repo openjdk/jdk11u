@@ -21,6 +21,8 @@
  * questions.
  */
 
+package gc.epsilon;
+
 /**
  * @test TestAlwaysPretouch
  * @key gc
@@ -30,10 +32,9 @@
  *
  * @run main/othervm -Xmx256m
  *                   -XX:+UnlockExperimentalVMOptions -XX:+UseEpsilonGC
- *                   TestEpsilonEnabled
+ *                   gc.epsilon.TestEpsilonEnabled
  */
 
-import jdk.test.lib.Platform;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 

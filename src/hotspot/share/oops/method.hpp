@@ -825,6 +825,7 @@ class Method : public Metadata {
 
   // Clear methods
   static void clear_jmethod_ids(ClassLoaderData* loader_data);
+  void clear_jmethod_id();
   static void print_jmethod_ids(const ClassLoaderData* loader_data, outputStream* out) PRODUCT_RETURN;
 
   // Get this method's jmethodID -- allocate if it doesn't exist
@@ -983,6 +984,15 @@ class Method : public Metadata {
 
   // Deallocation function for redefine classes or if an error occurs
   void deallocate_contents(ClassLoaderData* loader_data);
+
+  Method* get_new_method() const {
+    InstanceKlass* holder = method_holder();
+    Method* new_method = holder->method_with_idnum(orig_method_idnum());
+
+    assert(new_method != NULL, "method_with_idnum() should not be null");
+    assert(this != new_method, "sanity check");
+    return new_method;
+  }
 
   // Printing
 #ifndef PRODUCT

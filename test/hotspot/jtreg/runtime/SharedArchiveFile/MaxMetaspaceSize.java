@@ -24,6 +24,7 @@
 /**
  * @test
  * @requires vm.cds
+ * @requires vm.flagless
  * @bug 8067187 8200078
  * @summary Testing CDS dumping with the -XX:MaxMetaspaceSize=<size> option
  * @library /test/lib
@@ -51,7 +52,7 @@ public class MaxMetaspaceSize {
     }
 
     String msg = "Failed allocating metaspace object";
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(processArgs.toArray(new String[0]));
+    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(processArgs);
     CDSTestUtils.executeAndLog(pb, "dump").shouldContain(msg).shouldHaveExitValue(1);
   }
 }

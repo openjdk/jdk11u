@@ -107,7 +107,12 @@ public final class Utils {
      */
     public static final String TEST_NAME = System.getProperty("test.name", ".");
 
-   /**
+    /**
+     * Returns the value of 'test.nativepath' system property
+     */
+    public static final String TEST_NATIVE_PATH = System.getProperty("test.nativepath", ".");
+
+    /**
      * Defines property name for seed value.
      */
     public static final String SEED_PROPERTY_NAME = "jdk.test.lib.random.seed";
@@ -182,6 +187,18 @@ public final class Utils {
      * @return The combination of JTReg test java options and user args.
      */
     public static String[] addTestJavaOpts(String... userArgs) {
+        List<String> opts = new ArrayList<String>();
+        Collections.addAll(opts, getTestJavaOpts());
+        Collections.addAll(opts, userArgs);
+        return opts.toArray(new String[0]);
+    }
+
+    /**
+     * Combines given arguments with default JTReg arguments for a jvm running a test.
+     * This is the combination of JTReg arguments test.vm.opts and test.java.opts
+     * @return The combination of JTReg test java options and user args.
+     */
+    public static String[] prependTestJavaOpts(String... userArgs) {
         List<String> opts = new ArrayList<String>();
         Collections.addAll(opts, getTestJavaOpts());
         Collections.addAll(opts, userArgs);
@@ -761,5 +778,25 @@ public final class Utils {
     public static Path createTempFile(String prefix, String suffix, FileAttribute<?>... attrs) throws IOException {
         Path dir = Paths.get(System.getProperty("user.dir", "."));
         return Files.createTempFile(dir, prefix, suffix);
+    }
+
+    /**
+     * Creates an empty directory in "user.dir" or "."
+     * <p>
+     * This method is meant as a replacement for {@code Files#createTempDirectory(String, String, FileAttribute...)}
+     * that doesn't leave files behind in /tmp directory of the test machine
+     * <p>
+     * If the property "user.dir" is not set, "." will be used.
+     *
+     * @param prefix
+     * @param attrs
+     * @return the path to the newly created directory
+     * @throws IOException
+     *
+     * @see {@link Files#createTempDirectory(String, String, FileAttribute...)}
+     */
+    public static Path createTempDirectory(String prefix, FileAttribute<?>... attrs) throws IOException {
+        Path dir = Paths.get(System.getProperty("user.dir", "."));
+        return Files.createTempDirectory(dir, prefix);
     }
 }

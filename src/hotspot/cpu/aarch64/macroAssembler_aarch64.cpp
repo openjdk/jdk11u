@@ -743,8 +743,23 @@ address MacroAssembler::trampoline_call(Address entry, CodeBuffer *cbuf) {
          || entry.rspec().type() == relocInfo::static_call_type
          || entry.rspec().type() == relocInfo::virtual_call_type, "wrong reloc type");
 
+  bool need_trampoline = far_branches();
+  if (!need_trampoline && entry.rspec().type() == relocInfo::runtime_call_type && !CodeCache::contains(entry.target())) {
+    // If it is a runtime call of an address outside small CodeCache,
+    // we need to check whether it is in range.
+    address target = entry.target();
+    assert(target < CodeCache::low_bound() || target >= CodeCache::high_bound(), "target is inside CodeCache");
+    // Case 1: -------T-------L====CodeCache====H-------
+    //                ^-------longest branch---|
+    // Case 2: -------L====CodeCache====H-------T-------
+    //                |-------longest branch ---^
+    address longest_branch_start = (target < CodeCache::low_bound()) ? CodeCache::high_bound() - NativeInstruction::instruction_size
+                                                                     : CodeCache::low_bound();
+    need_trampoline = !reachable_from_branch_at(longest_branch_start, target);
+  }
+
   // We need a trampoline if branches are far.
-  if (far_branches()) {
+  if (need_trampoline) {
     bool in_scratch_emit_size = false;
 #ifdef COMPILER2
     // We don't want to emit a trampoline if C2 is generating dummy
@@ -765,7 +780,7 @@ address MacroAssembler::trampoline_call(Address entry, CodeBuffer *cbuf) {
 
   if (cbuf) cbuf->set_insts_mark();
   relocate(entry.rspec());
-  if (!far_branches()) {
+  if (!need_trampoline) {
     bl(entry.target());
   } else {
     bl(pc());
@@ -1253,7 +1268,7 @@ void MacroAssembler::check_klass_subtype_slow_path(Register sub_klass,
   if (!IS_A_TEMP(r2))    pushed_registers += r2;
   if (!IS_A_TEMP(r5))    pushed_registers += r5;
 
-  if (super_klass != r0 || UseCompressedOops) {
+  if (super_klass != r0) {
     if (!IS_A_TEMP(r0))   pushed_registers += r0;
   }
 
@@ -1492,7 +1507,7 @@ void MacroAssembler::movptr(Register r, uintptr_t imm64) {
 #ifndef PRODUCT
   {
     char buffer[64];
-    snprintf(buffer, sizeof(buffer), PTR64_FORMAT, imm64);
+    snprintf(buffer, sizeof(buffer), "0x%" PRIX64, (uint64_t)imm64);
     block_comment(buffer);
   }
 #endif
@@ -1555,7 +1570,7 @@ void MacroAssembler::mov_immediate64(Register dst, uint64_t imm64)
 #ifndef PRODUCT
   {
     char buffer[64];
-    snprintf(buffer, sizeof(buffer), PTR64_FORMAT, imm64);
+    snprintf(buffer, sizeof(buffer), "0x%" PRIX64, imm64);
     block_comment(buffer);
   }
 #endif
@@ -1668,7 +1683,7 @@ void MacroAssembler::mov_immediate32(Register dst, uint32_t imm32)
 #ifndef PRODUCT
     {
       char buffer[64];
-      snprintf(buffer, sizeof(buffer), PTR32_FORMAT, imm32);
+      snprintf(buffer, sizeof(buffer), "0x%" PRIX32, imm32);
       block_comment(buffer);
     }
 #endif
@@ -1832,7 +1847,7 @@ bool MacroAssembler::try_merge_ldst(Register rt, const Address &adr, size_t size
     return true;
   } else {
     assert(size_in_bytes == 8 || size_in_bytes == 4, "only 8 bytes or 4 bytes load/store is supported.");
-    const unsigned mask = size_in_bytes - 1;
+    const uint64_t mask = size_in_bytes - 1;
     if (adr.getMode() == Address::base_plus_offset &&
         (adr.offset() & mask) == 0) { // only supports base_plus_offset.
       code()->set_last_insn(pc());
@@ -2040,11 +2055,17 @@ void MacroAssembler::increment(Address dst, int value)
 
 
 void MacroAssembler::pusha() {
-  push(0x7fffffff, sp);
+  push(RegSet::range(r0, r30), sp);
 }
 
 void MacroAssembler::popa() {
-  pop(0x7fffffff, sp);
+  pop(RegSet::range(r0, r17), sp);
+#ifdef R18_RESERVED
+  ldp(zr, r19, Address(post(sp, 2 * wordSize)));
+  pop(RegSet::range(r20, r30), sp);
+#else
+  pop(RegSet::range(r18_tls, r30), sp);
+#endif
 }
 
 // Push lots of registers in the bit set supplied.  Don't push sp.
@@ -2579,7 +2600,7 @@ void MacroAssembler::pop_call_clobbered_registers() {
 
 void MacroAssembler::push_CPU_state(bool save_vectors) {
   int step = (save_vectors ? 8 : 4) * wordSize;
-  push(0x3fffffff, sp);         // integer registers except lr & sp
+  push(RegSet::range(r0, r29), sp);         // integer registers except lr & sp
   mov(rscratch1, -step);
   sub(sp, sp, step);
   for (int i = 28; i >= 4; i -= 4) {
@@ -2594,7 +2615,15 @@ void MacroAssembler::pop_CPU_state(bool restore_vectors) {
   for (int i = 0; i <= 28; i += 4)
     ld1(as_FloatRegister(i), as_FloatRegister(i+1), as_FloatRegister(i+2),
         as_FloatRegister(i+3), restore_vectors ? T2D : T1D, Address(post(sp, step)));
-  pop(0x3fffffff, sp);         // integer registers except lr & sp
+
+  // integer registers except lr & sp
+  pop(RegSet::range(r0, r17), sp);
+#ifdef R18_RESERVED
+  ldp(zr, r19, Address(post(sp, 2 * wordSize)));
+  pop(RegSet::range(r20, r29), sp);
+#else
+  pop(RegSet::range(r18_tls, r29), sp);
+#endif
 }
 
 /**
@@ -2760,7 +2789,7 @@ void MacroAssembler::merge_ldst(Register rt,
   // Overwrite previous generated binary.
   code_section()->set_end(prev);
 
-  const int sz = prev_ldst->size_in_bytes();
+  const size_t sz = prev_ldst->size_in_bytes();
   assert(sz == 8 || sz == 4, "only supports 64/32bit merging.");
   if (!is_store) {
     BLOCK_COMMENT("merged ldr pair");
@@ -4303,6 +4332,7 @@ void MacroAssembler::remove_frame(int framesize) {
 typedef void (MacroAssembler::* chr_insn)(Register Rt, const Address &adr);
 
 // Search for str1 in str2 and return index or -1
+// Clobbers: rscratch1, rscratch2, rflags. May also clobber v0-v1, when icnt1==-1.
 void MacroAssembler::string_indexof(Register str2, Register str1,
                                     Register cnt2, Register cnt1,
                                     Register tmp1, Register tmp2,
@@ -5094,6 +5124,8 @@ address MacroAssembler::has_negatives(Register ary1, Register len, Register resu
   return pc();
 }
 
+// Clobbers: rscratch1, rscratch2, rflags
+// May also clobber v0-v7 when (!UseSimpleArrayEquals && UseSIMDForArrayEquals)
 address MacroAssembler::arrays_equals(Register a1, Register a2, Register tmp3,
                                       Register tmp4, Register tmp5, Register result,
                                       Register cnt1, int elem_size) {
@@ -5586,10 +5618,13 @@ void MacroAssembler::fill_words(Register base, Register cnt, Register value)
 
 // Intrinsic for sun/nio/cs/ISO_8859_1$Encoder.implEncodeISOArray and
 // java/lang/StringUTF16.compress.
+//
+// Clobbers: src, dst, res, rscratch1, rscratch2, rflags
 void MacroAssembler::encode_iso_array(Register src, Register dst,
-                      Register len, Register result,
-                      FloatRegister Vtmp1, FloatRegister Vtmp2,
-                      FloatRegister Vtmp3, FloatRegister Vtmp4)
+                                      Register len, Register result,
+                                      FloatRegister Vtmp1, FloatRegister Vtmp2,
+                                      FloatRegister Vtmp3, FloatRegister Vtmp4,
+                                      FloatRegister Vtmp5, FloatRegister Vtmp6)
 {
     Label DONE, SET_RESULT, NEXT_32, NEXT_32_PRFM, LOOP_8, NEXT_8, LOOP_1, NEXT_1,
         NEXT_32_START, NEXT_32_PRFM_START;
@@ -5612,13 +5647,13 @@ void MacroAssembler::encode_iso_array(Register src, Register dst,
           ld1(Vtmp1, Vtmp2, Vtmp3, Vtmp4, T8H, src);
         BIND(NEXT_32_PRFM_START);
           prfm(Address(src, SoftwarePrefetchHintDistance));
-          orr(v4, T16B, Vtmp1, Vtmp2);
-          orr(v5, T16B, Vtmp3, Vtmp4);
+          orr(Vtmp5, T16B, Vtmp1, Vtmp2);
+          orr(Vtmp6, T16B, Vtmp3, Vtmp4);
           uzp1(Vtmp1, T16B, Vtmp1, Vtmp2);
           uzp1(Vtmp3, T16B, Vtmp3, Vtmp4);
-          uzp2(v5, T16B, v4, v5); // high bytes
-          umov(tmp2, v5, D, 1);
-          fmovd(tmp1, v5);
+          uzp2(Vtmp6, T16B, Vtmp5, Vtmp6); // high bytes
+          umov(tmp2, Vtmp6, D, 1);
+          fmovd(tmp1, Vtmp6);
           orr(tmp1, tmp1, tmp2);
           cbnz(tmp1, LOOP_8);
           stpq(Vtmp1, Vtmp3, dst);
@@ -5637,8 +5672,8 @@ void MacroAssembler::encode_iso_array(Register src, Register dst,
           ld1(Vtmp1, Vtmp2, Vtmp3, Vtmp4, T8H, src);
       }
       prfm(Address(src, SoftwarePrefetchHintDistance));
-      uzp1(v4, T16B, Vtmp1, Vtmp2);
-      uzp1(v5, T16B, Vtmp3, Vtmp4);
+      uzp1(Vtmp5, T16B, Vtmp1, Vtmp2);
+      uzp1(Vtmp6, T16B, Vtmp3, Vtmp4);
       orr(Vtmp1, T16B, Vtmp1, Vtmp2);
       orr(Vtmp3, T16B, Vtmp3, Vtmp4);
       uzp2(Vtmp1, T16B, Vtmp1, Vtmp3); // high bytes
@@ -5646,7 +5681,7 @@ void MacroAssembler::encode_iso_array(Register src, Register dst,
       fmovd(tmp1, Vtmp1);
       orr(tmp1, tmp1, tmp2);
       cbnz(tmp1, LOOP_8);
-      stpq(v4, v5, dst);
+      stpq(Vtmp5, Vtmp6, dst);
       sub(len, len, 32);
       add(dst, dst, 32);
       add(src, src, 64);
@@ -5691,6 +5726,7 @@ void MacroAssembler::encode_iso_array(Register src, Register dst,
 
 
 // Inflate byte[] array to char[].
+// Clobbers: src, dst, len, rflags, rscratch1, v0-v6
 address MacroAssembler::byte_array_inflate(Register src, Register dst, Register len,
                                            FloatRegister vtmp1, FloatRegister vtmp2,
                                            FloatRegister vtmp3, Register tmp4) {
@@ -5799,9 +5835,10 @@ address MacroAssembler::byte_array_inflate(Register src, Register dst, Register 
 void MacroAssembler::char_array_compress(Register src, Register dst, Register len,
                                          FloatRegister tmp1Reg, FloatRegister tmp2Reg,
                                          FloatRegister tmp3Reg, FloatRegister tmp4Reg,
+                                         FloatRegister tmp5Reg, FloatRegister tmp6Reg,
                                          Register result) {
   encode_iso_array(src, dst, len, result,
-                   tmp1Reg, tmp2Reg, tmp3Reg, tmp4Reg);
+                   tmp1Reg, tmp2Reg, tmp3Reg, tmp4Reg, tmp5Reg, tmp6Reg);
   cmp(len, zr);
   csel(result, result, zr, EQ);
 }

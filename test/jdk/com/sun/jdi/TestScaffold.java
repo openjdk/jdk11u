@@ -535,9 +535,10 @@ abstract public class TestScaffold extends TargetAdapter {
                         Location loc = ((Locatable)event).location();
                         ReferenceType rt = loc.declaringType();
                         String name = rt.name();
-                        if (name.startsWith("java.") &&
-                                       !name.startsWith("sun.") &&
-                                       !name.startsWith("com.")) {
+                        if (name.startsWith("java.")
+                            || name.startsWith("sun.")
+                            || name.startsWith("com.")
+                            || name.startsWith("jdk.")) {
                             if (mainStartClass != null) {
                                 redefine(mainStartClass);
                             }
@@ -837,6 +838,12 @@ abstract public class TestScaffold extends TargetAdapter {
 
     public BreakpointEvent resumeTo(String clsName, String methodName,
                                          String methodSignature) {
+        return resumeTo(clsName, methodName, methodSignature, false /* suspendThread */);
+    }
+
+    public BreakpointEvent resumeTo(String clsName, String methodName,
+                                    String methodSignature,
+                                    boolean suspendThread) {
         ReferenceType rt = findReferenceType(clsName);
         if (rt == null) {
             rt = resumeToPrepareOf(clsName).referenceType();
@@ -848,7 +855,7 @@ abstract public class TestScaffold extends TargetAdapter {
                     + clsName + "." + methodName + ":" + methodSignature);
         }
 
-        return resumeTo(method.location());
+        return resumeTo(method.location(), suspendThread);
     }
 
     public BreakpointEvent resumeTo(String clsName, int lineNumber) throws AbsentInformationException {

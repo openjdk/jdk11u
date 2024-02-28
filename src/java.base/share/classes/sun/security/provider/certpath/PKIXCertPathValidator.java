@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -176,8 +176,8 @@ public final class PKIXCertPathValidator extends CertPathValidatorSpi {
         List<PKIXCertPathChecker> certPathCheckers = new ArrayList<>();
         // add standard checkers that we will be using
         certPathCheckers.add(untrustedChecker);
-        certPathCheckers.add(new AlgorithmChecker(anchor, null, params.date(),
-                params.variant()));
+        certPathCheckers.add(new AlgorithmChecker(anchor, null,
+                params.timestamp(), params.variant()));
         certPathCheckers.add(new KeyChecker(certPathLen,
                                             params.targetCertConstraints()));
         certPathCheckers.add(new ConstraintsChecker(certPathLen));
@@ -228,13 +228,13 @@ public final class PKIXCertPathValidator extends CertPathValidatorSpi {
         X509ValidationEvent xve = new X509ValidationEvent();
         if (xve.shouldCommit() || EventHelper.isLoggingSecurity()) {
             int[] certIds = params.certificates().stream()
-                    .mapToInt(x -> x.hashCode())
+                    .mapToInt(Certificate::hashCode)
                     .toArray();
-            int anchorCertId =
-                    anchor.getTrustedCert().hashCode();
+            int anchorCertId = (anchorCert != null) ?
+                anchorCert.hashCode() : anchor.getCAPublicKey().hashCode();
             if (xve.shouldCommit()) {
                 xve.certificateId = anchorCertId;
-                int certificatePos = 1; //anchor cert
+                int certificatePos = 1; // most trusted CA
                 xve.certificatePosition = certificatePos;
                 xve.validationCounter = validationCounter.incrementAndGet();
                 xve.commit();

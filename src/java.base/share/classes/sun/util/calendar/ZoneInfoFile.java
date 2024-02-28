@@ -573,12 +573,8 @@ public final class ZoneInfoFile {
                     // we can then pass in the dom = -1, dow > 0 into ZoneInfo
                     //
                     // hacking, assume the >=24 is the result of ZRB optimization for
-                    // "last", it works for now. From tzdata2020d this hacking
-                    // will not work for Asia/Gaza and Asia/Hebron which follow
-                    // Palestine DST rules.
-                    if (dom < 0 || dom >= 24 &&
-                                   !(zoneId.equals("Asia/Gaza") ||
-                                     zoneId.equals("Asia/Hebron"))) {
+                    // "last", it works for now.
+                    if (dom < 0 || dom >= 24) {
                         params[1] = -1;
                         params[2] = toCalendarDOW[dow];
                     } else {
@@ -600,7 +596,6 @@ public final class ZoneInfoFile {
                     params[7] = 0;
                 } else {
                     // hacking: see comment above
-                    // No need of hacking for Asia/Gaza and Asia/Hebron from tz2021e
                     if (dom < 0 || dom >= 24) {
                         params[6] = -1;
                         params[7] = toCalendarDOW[dow];
@@ -613,33 +608,16 @@ public final class ZoneInfoFile {
                 params[9] = toSTZTime[endRule.timeDefinition];
                 dstSavings = (startRule.offsetAfter - startRule.offsetBefore) * 1000;
 
-                // Note: known mismatching -> Asia/Amman
+                // Note: known mismatching -> Africa/Cairo
                 // ZoneInfo :      startDayOfWeek=5     <= Thursday
-                //                 startTime=86400000   <= 24 hours
-                // This:           startDayOfWeek=6
-                //                 startTime=0
-                // Similar workaround needs to be applied to Africa/Cairo and
-                // its endDayOfWeek and endTime
-                // Below is the workarounds, it probably slows down everyone a little
-                if (params[2] == 6 && params[3] == 0 &&
-                    (zoneId.equals("Asia/Amman"))) {
-                    params[2] = 5;
-                    params[3] = 86400000;
+                //                 startTime=86400000   <= 24:00
+                // This:           startDayOfWeek=6     <= Friday
+                //                 startTime=0          <= 0:00
+                if (zoneId.equals("Africa/Cairo") &&
+                        params[7] == Calendar.FRIDAY && params[8] == 0) {
+                    params[7] = Calendar.THURSDAY;
+                    params[8] = SECONDS_PER_DAY * 1000;
                 }
-                // Additional check for startDayOfWeek=6 and starTime=86400000
-                // is needed for Asia/Amman;
-                if (params[2] == 7 && params[3] == 0 &&
-                     (zoneId.equals("Asia/Amman"))) {
-                    params[2] = 6;        // Friday
-                    params[3] = 86400000; // 24h
-                }
-                //endDayOfWeek and endTime workaround
-                if (params[7] == 6 && params[8] == 0 &&
-                    (zoneId.equals("Africa/Cairo"))) {
-                    params[7] = 5;
-                    params[8] = 86400000;
-                }
-
             } else if (nTrans > 0) {  // only do this if there is something in table already
                 if (lastyear < LASTYEAR) {
                     // ZoneInfo has an ending entry for 2037
@@ -912,7 +890,6 @@ public final class ZoneInfoFile {
             this.dow = dowByte == 0 ? -1 : dowByte;
             this.secondOfDay = timeByte == 31 ? in.readInt() : timeByte * 3600;
             this.timeDefinition = (data & (3 << 12)) >>> 12;
-
             this.standardOffset = stdByte == 255 ? in.readInt() : (stdByte - 128) * 900;
             this.offsetBefore = beforeByte == 3 ? in.readInt() : standardOffset + beforeByte * 1800;
             this.offsetAfter = afterByte == 3 ? in.readInt() : standardOffset + afterByte * 1800;

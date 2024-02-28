@@ -1734,7 +1734,7 @@ void ClassVerifier::verify_method(const methodHandle& m, TRAPS) {
           no_control_flow = true; break;
         default:
           // We only need to check the valid bytecodes in class file.
-          // And jsr and ret are not in the new class file format in JDK1.5.
+          // And jsr and ret are not in the new class file format in JDK1.6.
           verify_error(ErrorContext::bad_code(bci),
               "Bad instruction: %02x", opcode);
           no_control_flow = false;
@@ -2182,11 +2182,12 @@ void ClassVerifier::verify_switch(
           "low must be less than or equal to high in tableswitch");
       return;
     }
-    keys = high - low + 1;
-    if (keys < 0) {
+    int64_t keys64 = ((int64_t)high - low) + 1;
+    if (keys64 > 65535) {  // Max code length
       verify_error(ErrorContext::bad_code(bci), "too many keys in tableswitch");
       return;
     }
+    keys = (int)keys64;
     delta = 1;
   } else {
     keys = (int)Bytes::get_Java_u4(aligned_bcp + jintSize);
@@ -2356,7 +2357,8 @@ void ClassVerifier::verify_field_instructions(RawBytecodeStream* bcs,
           verify_error(ErrorContext::bad_type(bci,
               current_frame->stack_top_ctx(),
               TypeOrigin::implicit(current_type())),
-              "Bad access to protected data in getfield");
+              "Bad access to protected data in %s",
+              is_getfield ? "getfield" : "putfield");
           return;
         }
       }

@@ -31,6 +31,18 @@
  * Used for signal-chaining. See RFE 4381843.
  */
 
+#include "jni.h"
+
+#ifdef SOLARIS
+/* Our redeclarations of the system functions must not have a less
+ * restrictive linker scoping, so we have to declare them as JNIEXPORT
+ * before including signal.h */
+#include "sys/signal.h"
+JNIEXPORT void (*signal(int sig, void (*disp)(int)))(int);
+JNIEXPORT void (*sigset(int sig, void (*disp)(int)))(int);
+JNIEXPORT int sigaction(int sig, const struct sigaction *act, struct sigaction *oact);
+#endif
+
 #include <dlfcn.h>
 #include <errno.h>
 #include <pthread.h>
@@ -278,16 +290,27 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oact) {
     signal_unlock();
     return 0;
   } else if (jvm_signal_installing) {
-    /* jvm is installing its signal handlers. Install the new
-     * handlers and save the old ones. */
+    /* jvm is installing its signal handlers.
+     * - if this is a modifying sigaction call, we install a new signal handler and store the old one
+     *   as chained signal handler.
+     * - if this is a non-modifying sigaction call, we don't change any state; we just return the existing
+     *   signal handler in the system (not the stored one).
+     * This works under the assumption that there is only one modifying sigaction call for a specific signal
+     * within the JVM_begin_signal_setting-JVM_end_signal_setting-window. There can be any number of non-modifying
+     * calls, but they will only return the expected preexisting handler if executed before the modifying call.
+     */
     res = call_os_sigaction(sig, act, &oldAct);
-    sact[sig] = oldAct;
-    if (oact != NULL) {
-      *oact = oldAct;
+    if (res == 0) {
+      if (act != NULL) {
+        /* store pre-existing handler as chained handler */
+        sact[sig] = oldAct;
+        /* Record the signals used by jvm. */
+        sigaddset(&jvmsigs, sig);
+      }
+      if (oact != NULL) {
+        *oact = oldAct;
+      }
     }
-
-    /* Record the signals used by jvm. */
-    sigaddset(&jvmsigs, sig);
 
     signal_unlock();
     return res;
@@ -302,7 +325,7 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oact) {
 }
 
 /* The three functions for the jvm to call into. */
-void JVM_begin_signal_setting() {
+JNIEXPORT void JVM_begin_signal_setting() {
   signal_lock();
   sigemptyset(&jvmsigs);
   jvm_signal_installing = true;
@@ -310,7 +333,7 @@ void JVM_begin_signal_setting() {
   signal_unlock();
 }
 
-void JVM_end_signal_setting() {
+JNIEXPORT void JVM_end_signal_setting() {
   signal_lock();
   jvm_signal_installed = true;
   jvm_signal_installing = false;
@@ -318,7 +341,7 @@ void JVM_end_signal_setting() {
   signal_unlock();
 }
 
-struct sigaction *JVM_get_signal_action(int sig) {
+JNIEXPORT struct sigaction *JVM_get_signal_action(int sig) {
   allocate_sact();
   /* Does race condition make sense here? */
   if (sigismember(&jvmsigs, sig)) {

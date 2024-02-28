@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,22 +21,26 @@
  * questions.
  */
 
+package gc.metaspace;
+
 /**
  * @test CompressedClassSpaceSizeInJmapHeap
  * @bug 8004924
  * @summary Checks that jmap -heap contains the flag CompressedClassSpaceSize
- * @requires vm.hasSAandCanAttach
+ * @requires vm.hasSA
  * @requires vm.bits == 64 & vm.opt.final.UseCompressedOops == true
  * @library /test/lib
  * @modules java.base/jdk.internal.misc
  *          java.management
- * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompressedClassSpaceSize=50m CompressedClassSpaceSizeInJmapHeap
+ * @run main/timeout=240 gc.metaspace.CompressedClassSpaceSizeInJmapHeap
  */
 
 import jdk.test.lib.JDKToolLauncher;
 import jdk.test.lib.Platform;
+import jdk.test.lib.apps.LingeredApp;
 import jdk.test.lib.process.OutputAnalyzer;
 import jdk.test.lib.process.ProcessTools;
+import jdk.test.lib.SA.SATestUtils;
 import java.nio.file.*;
 import java.io.File;
 import java.nio.charset.Charset;
@@ -45,19 +49,23 @@ import java.util.List;
 public class CompressedClassSpaceSizeInJmapHeap {
     // Note that on some platforms it may require root privileges to run this test.
     public static void main(String[] args) throws Exception {
+        SATestUtils.skipIfCannotAttach(); // throws SkippedException if attach not expected to work.
+
         if (!Platform.is64bit()) {
             // Compressed Class Space is only available on 64-bit JVMs
             return;
         }
 
-        String pid = Long.toString(ProcessTools.getProcessId());
+        LingeredApp theApp = new LingeredApp();
+        LingeredApp.startApp(List.of("-XX:CompressedClassSpaceSize=50m"), theApp);
+        String pid = Long.toString(theApp.getPid());
 
         JDKToolLauncher jmap = JDKToolLauncher.create("jhsdb")
                                               .addToolArg("jmap")
                                               .addToolArg("--heap")
                                               .addToolArg("--pid")
                                               .addToolArg(pid);
-        ProcessBuilder pb = new ProcessBuilder(jmap.getCommand());
+        ProcessBuilder pb = SATestUtils.createProcessBuilder(jmap);
 
         File out = new File("CompressedClassSpaceSizeInJmapHeap.stdout.txt");
         pb.redirectOutput(out);
@@ -70,6 +78,8 @@ public class CompressedClassSpaceSizeInJmapHeap {
         OutputAnalyzer output = new OutputAnalyzer(read(out));
         output.shouldContain("CompressedClassSpaceSize = 52428800 (50.0MB)");
         out.delete();
+
+        LingeredApp.stopApp(theApp);
     }
 
     private static void run(ProcessBuilder pb) throws Exception {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -45,6 +45,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.security.KeyStore;
@@ -62,8 +63,8 @@ import java.util.concurrent.TimeUnit;
  * Template to help speed your client/server tests.
  *
  * Two examples that use this template:
- *    test/sun/security/ssl/ServerHandshaker/AnonCipherWithWantClientAuth.java
- *    test/sun/net/www/protocol/https/HttpsClient/ServerIdentityTest.java
+ * test/jdk/sun/security/ssl/ServerHandshaker/AnonCipherWithWantClientAuth.java
+ * test/jdk/sun/net/www/protocol/https/HttpsClient/ServerIdentityTest.java
  */
 public class SSLSocketTemplate {
 
@@ -209,27 +210,37 @@ public class SSLSocketTemplate {
     /*
      * Is the server ready to serve?
      */
-    private final CountDownLatch serverCondition = new CountDownLatch(1);
+    protected final CountDownLatch serverCondition = new CountDownLatch(1);
 
     /*
      * Is the client ready to handshake?
      */
-    private final CountDownLatch clientCondition = new CountDownLatch(1);
+    protected final CountDownLatch clientCondition = new CountDownLatch(1);
 
     /*
      * What's the server port?  Use any free port by default
      */
-    private volatile int serverPort = 0;
+    protected volatile int serverPort = 0;
+
+    /*
+     * What's the server address?  null means binding to the wildcard.
+     */
+    protected volatile InetAddress serverAddress = null;
 
     /*
      * Define the server side of the test.
      */
-    private void doServerSide() throws Exception {
+    protected void doServerSide() throws Exception {
         // kick start the server side service
         SSLContext context = createServerSSLContext();
         SSLServerSocketFactory sslssf = context.getServerSocketFactory();
-        SSLServerSocket sslServerSocket =
-                (SSLServerSocket)sslssf.createServerSocket(serverPort);
+        InetAddress serverAddress = this.serverAddress;
+        SSLServerSocket sslServerSocket = serverAddress == null ?
+                (SSLServerSocket)sslssf.createServerSocket(serverPort)
+                : (SSLServerSocket)sslssf.createServerSocket();
+        if (serverAddress != null) {
+            sslServerSocket.bind(new InetSocketAddress(serverAddress, serverPort));
+        }
         configureServerSocket(sslServerSocket);
         serverPort = sslServerSocket.getLocalPort();
 
@@ -317,8 +328,11 @@ public class SSLSocketTemplate {
         try (SSLSocket sslSocket = (SSLSocket)sslsf.createSocket()) {
             try {
                 configureClientSocket(sslSocket);
-                sslSocket.connect(
-                        new InetSocketAddress("localhost", serverPort), 15000);
+                InetAddress serverAddress = this.serverAddress;
+                InetSocketAddress connectAddress = serverAddress == null
+                        ? new InetSocketAddress("localhost", serverPort)
+                        : new InetSocketAddress(serverAddress, serverPort);
+                sslSocket.connect(connectAddress, 15000);
             } catch (IOException ioe) {
                 // The server side may be impacted by naughty test cases or
                 // third party routines, and cannot accept connections.
@@ -470,7 +484,15 @@ public class SSLSocketTemplate {
      * Both sides can throw exceptions, but do you have a preference
      * as to which side should be the main thread.
      */
-    private static final boolean separateServerThread = false;
+    private final boolean separateServerThread;
+
+    public SSLSocketTemplate() {
+        this(false);
+    }
+
+    public SSLSocketTemplate(boolean sepSrvThread) {
+        this.separateServerThread = sepSrvThread;
+    }
 
     /*
      * Boot up the testing, used to drive remainder of the test.

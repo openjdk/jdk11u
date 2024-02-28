@@ -33,43 +33,6 @@ include FindTests.gmk
 .NOTPARALLEL:
 
 ################################################################################
-# Setup global test running parameters
-################################################################################
-
-# Each factor variable comes in 3 variants. The first one is reserved for users
-# to use on command line. The other two are for predifined configurations in JDL
-# and for machine specific configurations respectively.
-TEST_JOBS_FACTOR ?= 1
-TEST_JOBS_FACTOR_JDL ?= 1
-TEST_JOBS_FACTOR_MACHINE ?= 1
-
-ifeq ($(TEST_JOBS), 0)
-  CORES_DIVIDER := 2
-  ifeq ($(OPENJDK_TARGET_CPU_ARCH), sparc)
-    # For smaller SPARC machines we see reasonable scaling of throughput up to
-    # cpus/4 without affecting test reliability. On the bigger machines, cpus/4
-    # causes intermittent timeouts.
-    ifeq ($(shell $(EXPR) $(NUM_CORES) \> 16), 1)
-      CORES_DIVIDER := 5
-    else
-      CORES_DIVIDER := 4
-    endif
-  endif
-  MEMORY_DIVIDER := 2048
-  TEST_JOBS := $(shell $(AWK) \
-    'BEGIN { \
-      c = $(NUM_CORES) / $(CORES_DIVIDER); \
-      m = $(MEMORY_SIZE) / $(MEMORY_DIVIDER); \
-      if (c > m) c = m; \
-      c = c * $(TEST_JOBS_FACTOR); \
-      c = c * $(TEST_JOBS_FACTOR_JDL); \
-      c = c * $(TEST_JOBS_FACTOR_MACHINE); \
-      if (c < 1) c = 1; \
-      printf "%.0f", c; \
-    }')
-endif
-
-################################################################################
 # Parse global control variables
 ################################################################################
 
@@ -97,18 +60,13 @@ define SetTestOpt
   endif
 endef
 
-# Setup _NT_SYMBOL_PATH on Windows
-ifeq ($(OPENJDK_TARGET_OS), windows)
+# Setup _NT_SYMBOL_PATH on Windows, which points to our pdb files.
+ifeq ($(call isTargetOs, windows), true)
   ifndef _NT_SYMBOL_PATH
-    # Can't use PathList here as it adds quotes around the value.
-    _NT_SYMBOL_PATH := \
-        $(subst $(SPACE),;,$(strip \
-            $(foreach p, $(sort $(dir $(wildcard \
-                $(addprefix $(SYMBOLS_IMAGE_DIR)/bin/, *.pdb */*.pdb)))), \
-              $(call FixPath, $p) \
-            ) \
-        ))
-    export _NT_SYMBOL_PATH
+    SYMBOL_PATH := $(call PathList, $(sort $(patsubst %/, %, $(dir $(wildcard \
+        $(addprefix $(SYMBOLS_IMAGE_DIR)/bin/, *.pdb */*.pdb))))))
+    export _NT_SYMBOL_PATH := $(subst \\,\, $(call FixPath, \
+        $(subst $(DQUOTE),, $(SYMBOL_PATH))))
     $(info _NT_SYMBOL_PATH=$(_NT_SYMBOL_PATH))
   endif
 endif
@@ -241,11 +199,41 @@ TEST_JOBS_FACTOR_JDL ?= 1
 TEST_JOBS_FACTOR_MACHINE ?= 1
 
 ifeq ($(TEST_JOBS), 0)
-  # Concurrency based on min(cores / 2, 12) * TEST_JOBS_FACTOR
+  CORES_DIVIDER := 2
+  ifeq ($(call isTargetCpuArch, sparc), true)
+    # For smaller SPARC machines we see reasonable scaling of throughput up to
+    # cpus/4 without affecting test reliability. On the bigger machines, cpus/4
+    # causes intermittent timeouts.
+    ifeq ($(shell $(EXPR) $(NUM_CORES) \> 16), 1)
+      CORES_DIVIDER := 5
+    else
+      CORES_DIVIDER := 4
+    endif
+  endif
+  # For some big multi-core machines with low ulimit -u setting we hit the max
+  # threads/process limit. In such a setup the memory/cores-only-guided
+  # TEST_JOBS config is insufficient. From experience a concurrency setting of
+  # 14 works reasonably well for low ulimit values (<= 4096). Thus, use
+  # divider 4096/14. For high ulimit -u values this shouldn't make a difference.
+  ULIMIT_DIVIDER := (4096/14)
+  PROC_ULIMIT := -1
+  ifneq ($(OPENJDK_TARGET_OS), windows)
+    PROC_ULIMIT := $(shell $(ULIMIT) -u)
+    ifeq ($(PROC_ULIMIT), unlimited)
+      PROC_ULIMIT := -1
+    endif
+  endif
+  MEMORY_DIVIDER := 2048
   TEST_JOBS := $(shell $(AWK) \
     'BEGIN { \
-      c = $(NUM_CORES) / 2; \
-      if (c > 12) c = 12; \
+      c = $(NUM_CORES) / $(CORES_DIVIDER); \
+      m = $(MEMORY_SIZE) / $(MEMORY_DIVIDER); \
+      u = $(PROC_ULIMIT); \
+      if (u > -1) { \
+        u = u / $(ULIMIT_DIVIDER); \
+        if (u < c) c = u; \
+      } \
+      if (c > m) c = m; \
       c = c * $(TEST_JOBS_FACTOR); \
       c = c * $(TEST_JOBS_FACTOR_JDL); \
       c = c * $(TEST_JOBS_FACTOR_MACHINE); \
@@ -276,7 +264,7 @@ $(eval $(call SetTestOpt,TIMEOUT_FACTOR,JTREG))
 
 $(eval $(call ParseKeywordVariable, JTREG, \
     SINGLE_KEYWORDS := JOBS TIMEOUT_FACTOR TEST_MODE ASSERT VERBOSE RETAIN \
-        MAX_MEM RETRY_COUNT, \
+        MAX_MEM RUN_PROBLEM_LISTS RETRY_COUNT REPEAT_COUNT, \
     STRING_KEYWORDS := OPTIONS JAVA_OPTIONS VM_OPTIONS KEYWORDS \
         EXTRA_PROBLEM_LISTS AOT_MODULES, \
 ))
@@ -644,14 +632,24 @@ define SetupRunJtregTestBody
   $1_JTREG_MAX_RAM_PERCENTAGE := $$(shell $(AWK) 'BEGIN { print 25 / $$($1_JTREG_JOBS); }')
 
   # SPARC is in general slower per core so need to scale up timeouts a bit.
-  ifeq ($(OPENJDK_TARGET_CPU_ARCH), sparc)
+  ifeq ($(call isTargetCpuArch, sparc), true)
     JTREG_TIMEOUT_FACTOR ?= 8
   else
     JTREG_TIMEOUT_FACTOR ?= 4
   endif
   JTREG_VERBOSE ?= fail,error,summary
   JTREG_RETAIN ?= fail,error
+  JTREG_RUN_PROBLEM_LISTS ?= false
   JTREG_RETRY_COUNT ?= 0
+  JTREG_REPEAT_COUNT ?= 0
+
+  ifneq ($$(JTREG_RETRY_COUNT), 0)
+    ifneq ($$(JTREG_REPEAT_COUNT), 0)
+      $$(info Error: Cannot use both JTREG_RETRY_COUNT and JTREG_REPEAT_COUNT together.)
+      $$(info Please choose one or the other.)
+      $$(error Cannot continue)
+    endif
+  endif
 
   ifneq ($$($1_JTREG_MAX_MEM), 0)
     $1_JTREG_BASIC_OPTIONS += -vmoption:-Xmx$$($1_JTREG_MAX_MEM)
@@ -676,8 +674,10 @@ define SetupRunJtregTestBody
   $1_JTREG_BASIC_OPTIONS += -e:JDK8_HOME=$$(BOOT_JDK)
   # If running on Windows, propagate the _NT_SYMBOL_PATH to enable
   # symbol lookup in hserr files
-  ifeq ($$(OPENJDK_TARGET_OS), windows)
+  # The minidumps are disabled by default on client Windows, so enable them
+  ifeq ($$(call isTargetOs, windows), true)
     $1_JTREG_BASIC_OPTIONS += -e:_NT_SYMBOL_PATH
+    $1_JTREG_BASIC_OPTIONS += -vmoption:-XX:+CreateCoredumpOnCrash
   endif
 
   $1_JTREG_BASIC_OPTIONS += \
@@ -693,13 +693,19 @@ define SetupRunJtregTestBody
     $1_JTREG_BASIC_OPTIONS += -nativepath:$$($1_JTREG_NATIVEPATH)
   endif
 
+  ifeq ($$(JTREG_RUN_PROBLEM_LISTS), true)
+    JTREG_PROBLEM_LIST_PREFIX := -match:
+  else
+    JTREG_PROBLEM_LIST_PREFIX := -exclude:
+  endif
+
   ifneq ($$($1_JTREG_PROBLEM_LIST), )
-    $1_JTREG_BASIC_OPTIONS += $$(addprefix -exclude:, $$($1_JTREG_PROBLEM_LIST))
+    $1_JTREG_BASIC_OPTIONS += $$(addprefix $$(JTREG_PROBLEM_LIST_PREFIX), $$($1_JTREG_PROBLEM_LIST))
   endif
 
   ifneq ($$(JTREG_EXTRA_PROBLEM_LISTS), )
     # Accept both absolute paths as well as relative to the current test root.
-    $1_JTREG_BASIC_OPTIONS += $$(addprefix -exclude:, $$(wildcard \
+    $1_JTREG_BASIC_OPTIONS += $$(addprefix $$(JTREG_PROBLEM_LIST_PREFIX), $$(wildcard \
         $$(JTREG_EXTRA_PROBLEM_LISTS) \
         $$(addprefix $$($1_TEST_ROOT)/, $$(JTREG_EXTRA_PROBLEM_LISTS)) \
     ))
@@ -738,8 +744,9 @@ define SetupRunJtregTestBody
     $1_JTREG_BASIC_OPTIONS += -vmoptions:"$$($1_AOT_OPTIONS)"
   endif
 
-  clean-workdir-$1:
+  clean-outputdirs-$1:
 	$$(RM) -r $$($1_TEST_SUPPORT_DIR)
+	$$(RM) -r $$($1_TEST_RESULTS_DIR)
 
   $1_COMMAND_LINE := \
       $$(JAVA) $$($1_JTREG_LAUNCHER_OPTIONS) \
@@ -771,7 +778,19 @@ define SetupRunJtregTestBody
         done
   endif
 
-  run-test-$1: clean-workdir-$1 $$($1_AOT_TARGETS)
+  ifneq ($$(JTREG_REPEAT_COUNT), 0)
+    $1_COMMAND_LINE := \
+        for i in {1..$$(JTREG_REPEAT_COUNT)}; do \
+          $$(PRINTF) "\nRepeating Jtreg run: $$$$i out of $$(JTREG_REPEAT_COUNT)\n"; \
+          $$($1_COMMAND_LINE); \
+          if [ "`$$(CAT) $$($1_EXITCODE)`" != "0" ]; then \
+            $$(PRINTF) "\nFailures detected, no more repeats.\n"; \
+            break; \
+          fi; \
+        done
+  endif
+
+  run-test-$1: clean-outputdirs-$1 $$($1_AOT_TARGETS)
 	$$(call LogWarn)
 	$$(call LogWarn, Running test '$$($1_TEST)')
 	$$(call MakeDir, $$($1_TEST_RESULTS_DIR) $$($1_TEST_SUPPORT_DIR) \

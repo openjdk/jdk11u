@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -28,7 +28,7 @@
  * @build sun.hotspot.WhiteBox
  * @run driver ClassFileInstaller sun.hotspot.WhiteBox
  *                                sun.hotspot.WhiteBox$WhiteBoxPermission
- * @run driver/timeout=300 compiler.jsr292.ContinuousCallSiteTargetChange
+ * @run driver/timeout=180 compiler.jsr292.ContinuousCallSiteTargetChange
  */
 
 package compiler.jsr292;
@@ -61,8 +61,7 @@ public class ContinuousCallSiteTargetChange {
         argsList.add(test.getName());
         argsList.add(Integer.toString(ITERATIONS));
 
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
-                argsList.toArray(new String[argsList.size()]));
+        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(argsList);
 
         OutputAnalyzer analyzer = new OutputAnalyzer(pb.start());
 

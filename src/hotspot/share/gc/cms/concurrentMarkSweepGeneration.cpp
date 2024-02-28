@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -80,6 +80,7 @@
 #include "runtime/timer.hpp"
 #include "runtime/vmThread.hpp"
 #include "services/memoryService.hpp"
+#include "services/memTracker.hpp"
 #include "services/runtimeService.hpp"
 #include "utilities/align.hpp"
 #include "utilities/stack.inline.hpp"
@@ -5068,8 +5069,9 @@ void CMSRefProcTaskProxy::work(uint worker_id) {
   CMSParDrainMarkingStackClosure par_drain_stack(_collector, _span,
                                                  _mark_bit_map,
                                                  work_queue(worker_id));
+  BarrierEnqueueDiscoveredFieldClosure enqueue;
   CMSIsAliveClosure is_alive_closure(_span, _mark_bit_map);
-  _task.work(worker_id, is_alive_closure, par_keep_alive, par_drain_stack);
+  _task.work(worker_id, is_alive_closure, par_keep_alive, enqueue, par_drain_stack);
   if (_task.marks_oops_alive()) {
     do_work_steal(worker_id, &par_drain_stack, &par_keep_alive,
                   _collector->hash_seed(worker_id));
@@ -5167,6 +5169,7 @@ void CMSCollector::refProcessingWork() {
     // Setup keep_alive and complete closures.
     CMSKeepAliveClosure cmsKeepAliveClosure(this, _span, &_markBitMap,
                                             &_markStack, false /* !preclean */);
+    BarrierEnqueueDiscoveredFieldClosure cmsEnqueue;
     CMSDrainMarkingStackClosure cmsDrainMarkingStackClosure(this,
                                   _span, &_markBitMap, &_markStack,
                                   &cmsKeepAliveClosure, false /* !preclean */);
@@ -5192,12 +5195,14 @@ void CMSCollector::refProcessingWork() {
       CMSRefProcTaskExecutor task_executor(*this);
       stats = rp->process_discovered_references(&_is_alive_closure,
                                         &cmsKeepAliveClosure,
+                                        &cmsEnqueue,
                                         &cmsDrainMarkingStackClosure,
                                         &task_executor,
                                         &pt);
     } else {
       stats = rp->process_discovered_references(&_is_alive_closure,
                                         &cmsKeepAliveClosure,
+                                        &cmsEnqueue,
                                         &cmsDrainMarkingStackClosure,
                                         NULL,
                                         &pt);
@@ -5535,17 +5540,18 @@ void CMSCollector::reset_stw() {
 
 void CMSCollector::do_CMS_operation(CMS_op_type op, GCCause::Cause gc_cause) {
   GCTraceCPUTime tcpu;
-  TraceCollectorStats tcs_cgc(cgc_counters());
 
   switch (op) {
     case CMS_op_checkpointRootsInitial: {
       GCTraceTime(Info, gc) t("Pause Initial Mark", NULL, GCCause::_no_gc, true);
+      TraceCollectorStats tcs_cgc(cgc_counters());
       SvcGCMarker sgcm(SvcGCMarker::CONCURRENT);
       checkpointRootsInitial();
       break;
     }
     case CMS_op_checkpointRootsFinal: {
       GCTraceTime(Info, gc) t("Pause Remark", NULL, GCCause::_no_gc, true);
+      TraceCollectorStats tcs_cgc(cgc_counters());
       SvcGCMarker sgcm(SvcGCMarker::CONCURRENT);
       checkpointRootsFinal();
       break;
@@ -5650,6 +5656,9 @@ bool CMSBitMap::allocate(MemRegion mr) {
     log_warning(gc)("CMS bit map backing store failure");
     return false;
   }
+
+  // Record NMT memory type
+  MemTracker::record_virtual_memory_type(brs.base(), mtGC);
   assert(_virtual_space.committed_size() == brs.size(),
          "didn't reserve backing store for all of CMS bit map?");
   assert(_virtual_space.committed_size() << (_shifter + LogBitsPerByte) >=
@@ -5738,6 +5747,9 @@ bool CMSMarkStack::allocate(size_t size) {
     log_warning(gc)("CMSMarkStack backing store failure");
     return false;
   }
+
+  // Record NMT memory type
+  MemTracker::record_virtual_memory_type(rs.base(), mtGC);
   assert(_virtual_space.committed_size() == rs.size(),
          "didn't reserve backing store for all of CMS stack?");
   _base = (oop*)(_virtual_space.low());
@@ -5776,6 +5788,9 @@ void CMSMarkStack::expand() {
     if (!_virtual_space.initialize(rs, rs.size())) {
       fatal("Not enough swap for expanded marking stack");
     }
+    // Record NMT memory type
+    MemTracker::record_virtual_memory_type(rs.base(), mtGC);
+
     _base = (oop*)(_virtual_space.low());
     _index = 0;
     _capacity = new_capacity;

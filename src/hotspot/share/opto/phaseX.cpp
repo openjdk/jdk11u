@@ -482,6 +482,14 @@ PhaseRenumberLive::PhaseRenumberLive(PhaseGVN* gvn,
 
   uint worklist_size = worklist->size();
 
+  GrowableArray<Node_Notes*>* old_node_note_array = C->node_note_array();
+  if (old_node_note_array != NULL) {
+    int new_size = (_useful.size() >> 8) + 1; // The node note array uses blocks, see C->_log2_node_notes_block_size
+    new_size = MAX2(8, new_size);
+    C->set_node_note_array(new (C->comp_arena()) GrowableArray<Node_Notes*> (C->comp_arena(), new_size, 0, NULL));
+    C->grow_node_notes(C->node_note_array(), new_size);
+  }
+
   // Iterate over the set of live nodes.
   for (uint current_idx = 0; current_idx < _useful.size(); current_idx++) {
     Node* n = _useful.at(current_idx);
@@ -496,6 +504,11 @@ PhaseRenumberLive::PhaseRenumberLive(PhaseGVN* gvn,
 
     assert(_old2new_map.at(n->_idx) == -1, "already seen");
     _old2new_map.at_put(n->_idx, current_idx);
+
+    if (old_node_note_array != NULL) {
+      Node_Notes* nn = C->locate_node_notes(old_node_note_array, n->_idx);
+      C->set_node_notes_at(current_idx, nn);
+    }
 
     n->set_idx(current_idx); // Update node ID.
 
@@ -1768,7 +1781,7 @@ bool PhaseIterGVN::no_dependent_zero_check(Node* n) const {
     case Op_DivI:
     case Op_ModI: {
       // Type of divisor includes 0?
-      if (n->in(2)->is_top()) {
+      if (type(n->in(2)) == Type::TOP) {
         // 'n' is dead. Treat as if zero check is still there to avoid any further optimizations.
         return false;
       }
@@ -1778,7 +1791,7 @@ bool PhaseIterGVN::no_dependent_zero_check(Node* n) const {
     case Op_DivL:
     case Op_ModL: {
       // Type of divisor includes 0?
-      if (n->in(2)->is_top()) {
+      if (type(n->in(2)) == Type::TOP) {
         // 'n' is dead. Treat as if zero check is still there to avoid any further optimizations.
         return false;
       }
@@ -1845,6 +1858,10 @@ void PhaseCCP::analyze() {
   // This loop is the meat of CCP.
   while( worklist.size() ) {
     Node *n = worklist.pop();
+    if (n->is_SafePoint()) {
+      // Keep track of SafePoint nodes for PhaseCCP::transform()
+      _safepoints.push(n);
+    }
     const Type *t = n->Value(this);
     if (t != type(n)) {
       assert(ccp_type_widens(t, type(n)), "ccp type must widen");
@@ -1933,6 +1950,30 @@ void PhaseCCP::analyze() {
             }
           }
         }
+        push_cast_ii(worklist, n, m);
+      }
+    }
+  }
+}
+
+void PhaseCCP::push_if_not_bottom_type(Unique_Node_List& worklist, Node* n) const {
+  if (n->bottom_type() != type(n)) {
+    worklist.push(n);
+  }
+}
+
+// CastII::Value() optimizes CmpI/If patterns if the right input of the CmpI has a constant type. If the CastII input is
+// the same node as the left input into the CmpI node, the type of the CastII node can be improved accordingly. Add the
+// CastII node back to the worklist to re-apply Value() to either not miss this optimization or to undo it because it
+// cannot be applied anymore. We could have optimized the type of the CastII before but now the type of the right input
+// of the CmpI (i.e. 'parent') is no longer constant. The type of the CastII must be widened in this case.
+void PhaseCCP::push_cast_ii(Unique_Node_List& worklist, const Node* parent, const Node* use) const {
+  if (use->Opcode() == Op_CmpI && use->in(2) == parent) {
+    Node* other_cmp_input = use->in(1);
+    for (DUIterator_Fast imax, i = other_cmp_input->fast_outs(imax); i < imax; i++) {
+      Node* cast_ii = other_cmp_input->fast_out(i);
+      if (cast_ii->is_CastII()) {
+        push_if_not_bottom_type(worklist, cast_ii);
       }
     }
   }
@@ -1961,6 +2002,23 @@ Node *PhaseCCP::transform( Node *n ) {
   GrowableArray <Node *> trstack(C->live_nodes() >> 1);
 
   trstack.push(new_node);           // Process children of cloned node
+
+  // This CCP pass may prove that no exit test for a loop ever succeeds (i.e. the loop is infinite). In that case,
+  // the logic below doesn't follow any path from Root to the loop body: there's at least one such path but it's proven
+  // never taken (its type is TOP). As a consequence the node on the exit path that's input to Root (let's call it n) is
+  // replaced by the top node and the inputs of that node n are not enqueued for further processing. If CCP only works
+  // through the graph from Root, this causes the loop body to never be processed here even when it's not dead (that
+  // is reachable from Root following its uses). To prevent that issue, transform() starts walking the graph from Root
+  // and all safepoints.
+  for (uint i = 0; i < _safepoints.size(); ++i) {
+    Node* nn = _safepoints.at(i);
+    Node* new_node = _nodes[nn->_idx];
+    assert(new_node == NULL, "");
+    new_node = transform_once(nn);
+    _nodes.map(nn->_idx, new_node);
+    trstack.push(new_node);
+  }
+
   while ( trstack.is_nonempty() ) {
     Node *clone = trstack.pop();
     uint cnt = clone->req();
@@ -1979,7 +2037,6 @@ Node *PhaseCCP::transform( Node *n ) {
   }
   return new_node;
 }
-
 
 //------------------------------transform_once---------------------------------
 // For PhaseCCP, transformation is IDENTITY unless Node computed a constant.
@@ -2211,6 +2268,15 @@ void Node::set_req_X( uint i, Node *n, PhaseIterGVN *igvn ) {
 #endif
   }
 
+}
+
+void Node::set_req_X(uint i, Node *n, PhaseGVN *gvn) {
+  PhaseIterGVN* igvn = gvn->is_IterGVN();
+  if (igvn == NULL) {
+    set_req(i, n);
+    return;
+  }
+  set_req_X(i, n, igvn);
 }
 
 //-------------------------------replace_by-----------------------------------

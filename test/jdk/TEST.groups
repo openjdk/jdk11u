@@ -22,6 +22,17 @@
 
 ###############################################################################
 #
+# All tests
+#
+
+all = \
+    :jdk_all
+
+jdk_all = \
+    /
+
+###############################################################################
+#
 # Tiered testing definitions
 #
 
@@ -77,7 +88,10 @@ tier3 = \
     :jdk_beans \
     :jdk_imageio \
     :jdk_sound \
-    :jdk_client_sanity
+    :jdk_client_sanity \
+    :jdk_svc \
+   -:jdk_svc_sanity \
+   -:svc_tools
 
 # Everything not in other tiers
 tier4 = \
@@ -207,6 +221,7 @@ jdk_security1 = \
 jdk_security2 = \
     javax/crypto \
     javax/xml/crypto \
+    com/sun/org/apache/xml/internal/security \
     com/oracle/security/ucrypto \
     com/sun/crypto
 
@@ -216,7 +231,6 @@ jdk_security3 = \
     com/sun/jarsigner \
     com/sun/security \
     -com/sun/security/jgss \
-    com/sun/org/apache/xml/internal/security \
     jdk/security \
     sun/security \
     -sun/security/krb5 \
@@ -373,17 +387,42 @@ jdk_sound = \
 jdk_imageio = \
     javax/imageio
 
+jdk_accessibility =
+
 jfc_demo = \
      demo/jfc
 
+jdk_editpad = \
+     jdk/editpad
+
 jdk_desktop = \
-    :jdk_awt \
-    :jdk_2d \
-    :jdk_beans \
+    :jdk_desktop_part1 \
+    :jdk_desktop_part2 \
+    :jdk_desktop_part3
+
+jdk_desktop_part1 = \
+    :jdk_client_sanity \
     :jdk_swing \
+    :jdk_2d \
     :jdk_sound \
     :jdk_imageio \
-    :jfc_demo
+    :jdk_editpad \
+    :jfc_demo \
+    :jdk_accessibility \
+    :jdk_beans
+
+jdk_desktop_part2 = \
+    :jdk_awt \
+    -java/awt/Component \
+    -java/awt/Modal \
+    -java/awt/datatransfer \
+    -java/awt/Window
+
+jdk_desktop_part3 = \
+    java/awt/Component \
+    java/awt/Modal \
+    java/awt/datatransfer \
+    java/awt/Window
 
 # SwingSet3 tests.
 jdk_client_sanity = \

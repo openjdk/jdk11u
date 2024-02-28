@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -251,14 +251,11 @@ int Method::bci_from(address bcp) const {
   if (is_native() && bcp == 0) {
     return 0;
   }
-#ifdef ASSERT
-  {
-    ResourceMark rm;
-    assert(is_native() && bcp == code_base() || contains(bcp) || VMError::is_error_reported(),
-           "bcp doesn't belong to this method: bcp: " INTPTR_FORMAT ", method: %s",
-           p2i(bcp), name_and_sig_as_C_string());
-  }
-#endif
+  // Do not have a ResourceMark here because AsyncGetCallTrace stack walking code
+  // may call this after interrupting a nested ResourceMark.
+  assert(is_native() && bcp == code_base() || contains(bcp) || VMError::is_error_reported(),
+         "bcp doesn't belong to this method. bcp: " INTPTR_FORMAT, p2i(bcp));
+
   return bcp - code_base();
 }
 
@@ -1089,7 +1086,7 @@ void Method::link_method(const methodHandle& h_method, TRAPS) {
     }
     assert(entry == _from_interpreted_entry,
            "should be correctly set during dump time");
-  } else if (_i2i_entry != NULL) {
+  } else if (adapter() != NULL) {
     return;
   }
   assert( _code == NULL, "nothing compiled yet" );
@@ -2215,6 +2212,20 @@ void Method::set_on_stack(const bool value) {
 // Called when the class loader is unloaded to make all methods weak.
 void Method::clear_jmethod_ids(ClassLoaderData* loader_data) {
   loader_data->jmethod_ids()->clear_all_methods();
+}
+
+void Method::clear_jmethod_id() {
+  // Being at a safepoint prevents racing against other class redefinitions
+  assert(SafepointSynchronize::is_at_safepoint(), "should be at safepoint");
+  // The jmethodID is not stored in the Method instance, we need to look it up first
+  jmethodID methodid = find_jmethod_id_or_null();
+  // We need to make sure that jmethodID actually resolves to this method
+  // - multiple redefined versions may share jmethodID slots and if a method
+  //   has already been rewired to a newer version we could be removing reference
+  //   to a still existing method instance
+  if (methodid != NULL && *((Method**)methodid) == this) {
+    *((Method**)methodid) = NULL;
+  }
 }
 
 bool Method::has_method_vptr(const void* ptr) {

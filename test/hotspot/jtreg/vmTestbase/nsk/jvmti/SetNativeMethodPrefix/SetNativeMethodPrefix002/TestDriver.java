@@ -58,8 +58,7 @@ import java.util.Arrays;
 
 public class TestDriver {
     public static void main(String[] args) throws Exception {
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
-                true,
+        ProcessBuilder pb = ProcessTools.createTestJvm(
                 "-agentlib:SetNativeMethodPrefix001=trace=all",
                 "-agentlib:SetNativeMethodPrefix002-01=trace=all prefix=wa_",
                 "-agentlib:SetNativeMethodPrefix002-02=trace=all prefix=wb_",
@@ -67,17 +66,7 @@ public class TestDriver {
                 nsk.jvmti.SetNativeMethodPrefix.SetNativeMethodPrefix002.class.getName()
         );
 
-        String envName;
-        if (Platform.isWindows()) {
-            envName = "PATH";
-        } else if (Platform.isOSX()) {
-            envName = "DYLD_LIBRARY_PATH";
-        } else if (Platform.isAix()) {
-            envName = "LIBPATH";
-        } else {
-            envName = "LD_LIBRARY_PATH";
-        }
-
+        String envName = Platform.sharedLibraryPathVariableName();
         pb.environment()
           .merge(envName, ".", (x, y) -> y + File.pathSeparator + x);
 

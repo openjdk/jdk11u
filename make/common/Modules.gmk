@@ -118,11 +118,11 @@ PLATFORM_MODULES += \
     jdk.zipfs \
     #
 
-ifeq ($(OPENJDK_TARGET_OS), windows)
+ifeq ($(call isTargetOs, windows), true)
   PLATFORM_MODULES += jdk.crypto.mscapi
 endif
 
-ifeq ($(OPENJDK_TARGET_OS), solaris)
+ifeq ($(call isTargetOs, solaris), true)
   PLATFORM_MODULES += jdk.crypto.ucrypto
 endif
 
@@ -337,6 +337,7 @@ $(MODULE_DEPS_MAKEFILE): $(MODULE_INFOS) \
 	                          sub(/\/\*.*\*\//, ""); \
 	                          gsub(/^ +\*.*/, ""); \
 	                          gsub(/ /, ""); \
+                                  gsub(/\r/, ""); \
 	                          printf(" %s", $$0) } \
 	          END           { printf("\n") }' $m && \
 	      $(PRINTF) "TRANSITIVE_MODULES_$(call GetModuleNameFromModuleInfo, $m) :=" && \
@@ -350,6 +351,7 @@ $(MODULE_DEPS_MAKEFILE): $(MODULE_INFOS) \
 	                          sub(/\/\*.*\*\//, ""); \
 	                          gsub(/^ +\*.*/, ""); \
 	                          gsub(/ /, ""); \
+                                  gsub(/\r/, ""); \
 	                          printf(" %s", $$0) } \
 	          END           { printf("\n") }' $m \
 	    ) >> $@ $(NEWLINE))

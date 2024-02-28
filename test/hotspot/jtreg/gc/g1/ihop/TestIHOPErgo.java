@@ -30,6 +30,7 @@
  * @requires !vm.flightRecorder
  * @requires vm.opt.ExplicitGCInvokesConcurrent != true
  * @requires vm.opt.MaxGCPauseMillis == "null"
+ * @requires vm.compMode != "Xcomp"
  * @library /test/lib /
  * @modules java.base/jdk.internal.misc
  * @modules java.management
@@ -128,8 +129,7 @@ public class TestIHOPErgo {
     }
 
     private static OutputAnalyzer executeTest(List<String> options) throws Throwable, RuntimeException {
-        OutputAnalyzer out;
-        out = ProcessTools.executeTestJvm(options.toArray(new String[options.size()]));
+        OutputAnalyzer out = ProcessTools.executeTestJvm(options);
         if (out.getExitValue() != 0) {
             System.out.println(out.getOutput());
             throw new RuntimeException("AppIHOP failed with exit code" + out.getExitValue());

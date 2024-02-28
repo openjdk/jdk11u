@@ -73,11 +73,11 @@ define WriteCompileCommandsFragment
   $(call LogInfo, Creating compile commands fragment for $(notdir $3))
   $(call MakeDir, $(dir $1))
   $(call WriteFile,{ \
-      "directory": "$(strip $2)"$(COMMA) \
-      "file": "$(strip $3)"$(COMMA) \
+      "directory": "$(strip $(call FixPath, $2))"$(COMMA) \
+      "file": "$(strip $(call FixPath, $3))"$(COMMA) \
       "command": "$(strip $(subst $(DQUOTE),\$(DQUOTE),$(subst \,\\,\
-        $(subst $(FIXPATH),,$4))))"$(COMMA) \
-      "output": "$(strip $5)" \
+        $(subst $(FIXPATH),,$(call FixPath, $4)))))"$(COMMA) \
+      "output": "$(strip $(call FixPath, $5))" \
     }$(COMMA), \
     $1)
 endef
@@ -177,12 +177,6 @@ $(strip \
 )
 endef
 
-ifeq ($(OPENJDK_BUILD_OS_ENV), windows.cygwin)
-  UNIX_PATH_PREFIX := /cygdrive
-else ifeq ($(OPENJDK_BUILD_OS_ENV), windows.msys)
-  UNIX_PATH_PREFIX :=
-endif
-
 # This pattern is used to transform the output of the microsoft CL compiler
 # into a make syntax dependency file (.d)
 WINDOWS_SHOWINCLUDE_SED_PATTERN := \
@@ -190,7 +184,7 @@ WINDOWS_SHOWINCLUDE_SED_PATTERN := \
     -e 's|Note: including file: *||' \
     -e 's|\r||g' \
     -e 's|\\|/|g' \
-    -e 's|^\([a-zA-Z]\):|$(UNIX_PATH_PREFIX)/\1|g' \
+    -e 's|^\([a-zA-Z]\):|$(WINENV_PREFIX)/\1|g' \
     -e '\|$(TOPDIR)|I !d' \
     -e 's|$$$$| \\|g' \
     #
@@ -289,10 +283,15 @@ endif
 # specialized file is found, returns the default file.
 # $1 Executable to find entitlements file for.
 ENTITLEMENTS_DIR := $(TOPDIR)/make/data/macosxsigning
-DEFAULT_ENTITLEMENTS_FILE := $(ENTITLEMENTS_DIR)/default.plist
+ifeq ($(MACOSX_CODESIGN_MODE), debug)
+  CODESIGN_PLIST_SUFFIX := -debug
+else
+  CODESIGN_PLIST_SUFFIX :=
+endif
+DEFAULT_ENTITLEMENTS_FILE := $(ENTITLEMENTS_DIR)/default$(CODESIGN_PLIST_SUFFIX).plist
 
 GetEntitlementsFile = \
-    $(foreach f, $(ENTITLEMENTS_DIR)/$(strip $(notdir $1)).plist, \
+    $(foreach f, $(ENTITLEMENTS_DIR)/$(strip $(notdir $1))$(CODESIGN_PLIST_SUFFIX).plist, \
       $(if $(wildcard $f), $f, $(DEFAULT_ENTITLEMENTS_FILE)) \
     )
 
@@ -360,10 +359,15 @@ define SetupCompileNativeFileBody
       endif
     endif
 
+    ifneq ($(DISABLE_WARNING_PREFIX), )
+      $1_WARNINGS_FLAGS := $$(addprefix $(DISABLE_WARNING_PREFIX), \
+        $$($$($1_BASE)_DISABLED_WARNINGS_$(TOOLCHAIN_TYPE)_$$($1_FILENAME)))
+    endif
+
     $1_BASE_CFLAGS :=  $$($$($1_BASE)_CFLAGS) $$($$($1_BASE)_EXTRA_CFLAGS) \
-        $$($$($1_BASE)_SYSROOT_CFLAGS)
+        $$($$($1_BASE)_SYSROOT_CFLAGS) $$($1_WARNINGS_FLAGS)
     $1_BASE_CXXFLAGS := $$($$($1_BASE)_CXXFLAGS) $$($$($1_BASE)_EXTRA_CXXFLAGS) \
-        $$($$($1_BASE)_SYSROOT_CFLAGS) $$($1_EXTRA_CXXFLAGS)
+        $$($$($1_BASE)_SYSROOT_CFLAGS) $$($1_EXTRA_CXXFLAGS) $$($1_WARNINGS_FLAGS)
     $1_BASE_ASFLAGS := $$($$($1_BASE)_ASFLAGS) $$($$($1_BASE)_EXTRA_ASFLAGS)
 
     ifneq ($$(filter %.c, $$($1_FILENAME)), )
@@ -558,7 +562,7 @@ define SetupNativeCompilationBody
   ifeq ($$($1_TYPE), EXECUTABLE)
     $1_PREFIX :=
     ifeq ($$($1_SUFFIX), )
-      $1_SUFFIX := $(EXE_SUFFIX)
+      $1_SUFFIX := $(EXECUTABLE_SUFFIX)
     endif
   else
     $1_PREFIX := $(LIBRARY_PREFIX)
@@ -915,7 +919,7 @@ define SetupNativeCompilationBody
 	$(TOUCH) $$@
 
   # On windows we need to create a resource file
-  ifeq ($(OPENJDK_TARGET_OS), windows)
+  ifeq ($(call isTargetOs, windows), true)
     ifneq ($$($1_VERSIONINFO_RESOURCE), )
       $1_RES := $$($1_OBJECT_DIR)/$$($1_BASENAME).res
       $1_RES_DEPS_FILE := $$($1_RES).d
@@ -956,7 +960,7 @@ define SetupNativeCompilationBody
 
   ifneq ($(DISABLE_MAPFILES), true)
     $1_REAL_MAPFILE := $$($1_MAPFILE)
-    ifneq ($(OPENJDK_TARGET_OS), windows)
+    ifeq ($(call isTargetOs, windows), false)
       ifneq ($$($1_REORDER), )
         $1_REAL_MAPFILE := $$($1_OBJECT_DIR)/mapfile
 
@@ -990,7 +994,7 @@ define SetupNativeCompilationBody
       # Only copy debug symbols for dynamic libraries and programs.
       ifneq ($$($1_TYPE), STATIC_LIBRARY)
         # Generate debuginfo files.
-        ifeq ($(OPENJDK_TARGET_OS), windows)
+        ifeq ($(call isTargetOs, windows), true)
           $1_EXTRA_LDFLAGS += -debug "-pdb:$$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).pdb" \
               "-map:$$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).map"
           ifeq ($(SHIP_DEBUG_SYMBOLS), public)
@@ -999,7 +1003,7 @@ define SetupNativeCompilationBody
           $1_DEBUGINFO_FILES := $$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).pdb \
               $$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).map
 
-        else ifneq ($(findstring $(OPENJDK_TARGET_OS), linux solaris), )
+        else ifeq ($(call isTargetOs, linux solaris), true)
           $1_DEBUGINFO_FILES := $$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).debuginfo
           # Setup the command line creating debuginfo files, to be run after linking.
           # It cannot be run separately since it updates the original target file
@@ -1015,13 +1019,13 @@ define SetupNativeCompilationBody
           $1_DEBUGINFO_FILES := $$($1_OUTPUT_DIR)/$$($1_NOSUFFIX).debuginfo 
           $1_CREATE_DEBUGINFO_CMDS := $(CP) $$($1_TARGET) $$($1_DEBUGINFO_FILES)
 
-        else ifeq ($(OPENJDK_TARGET_OS), macosx)
+        else ifeq ($(call isTargetOs, macosx), true)
           $1_DEBUGINFO_FILES := \
               $$($1_OUTPUT_DIR)/$$($1_BASENAME).dSYM/Contents/Info.plist \
               $$($1_OUTPUT_DIR)/$$($1_BASENAME).dSYM/Contents/Resources/DWARF/$$($1_BASENAME)
           $1_CREATE_DEBUGINFO_CMDS := \
               $(DSYMUTIL) --out $$($1_OUTPUT_DIR)/$$($1_BASENAME).dSYM $$($1_TARGET)
-        endif # OPENJDK_TARGET_OS
+        endif
 
         # Since the link rule creates more than one file that we want to track,
         # we have to use some tricks to get make to cooperate. To properly
@@ -1107,7 +1111,7 @@ define SetupNativeCompilationBody
       endif
     endif
 
-    ifeq ($(OPENJDK_TARGET_OS), windows)
+    ifeq ($(call isTargetOs, windows), true)
       ifeq ($$($1_EMBED_MANIFEST), true)
         $1_EXTRA_LDFLAGS += -manifest:embed
       endif
@@ -1187,7 +1191,7 @@ define SetupNativeCompilationBody
                 # Keep as much as possible on one execution line for best performance
                 # on Windows
 		$$(call LogInfo, Linking $$($1_BASENAME))
-                ifeq ($(OPENJDK_TARGET_OS), windows)
+                ifeq ($(call isTargetOs, windows), true)
 		  $$(call ExecuteWithLog, $$($1_OBJECT_DIR)/$$($1_SAFE_NAME)_link, \
 		      $$($1_LD) $$($1_LDFLAGS) $$($1_EXTRA_LDFLAGS) $$($1_SYSROOT_LDFLAGS) \
 		          $(LD_OUT_OPTION)$$($1_TARGET) $$($1_LD_OBJ_ARG) $$($1_RES) $$(GLOBAL_LIBS) \
@@ -1205,16 +1209,17 @@ define SetupNativeCompilationBody
 		  $$($1_CREATE_DEBUGINFO_CMDS)
 		  $$($1_STRIP_CMD)
                 endif
-                ifeq ($(OPENJDK_TARGET_OS), windows)
+                ifeq ($(call isTargetOs, windows), true)
                   ifneq ($$($1_MANIFEST), )
 		    $$($1_MT) -nologo -manifest $$($1_MANIFEST) -identity:"$$($1_NAME).exe, version=$$($1_MANIFEST_VERSION)" -outputresource:$$@;#1
                   endif
                 endif
-                # This only works if the openjdk_codesign identity is present on the system. Let
-                # silently fail otherwise.
-                ifneq ($(CODESIGN), )
-		  $(CODESIGN) -s "$(MACOSX_CODESIGN_IDENTITY)" --timestamp --options runtime \
+                # On macosx, optionally run codesign on every binary
+                ifeq ($(MACOSX_CODESIGN_MODE), hardened)
+		  $(CODESIGN) -f -s "$(MACOSX_CODESIGN_IDENTITY)" --timestamp --options runtime \
 		      --entitlements $$(call GetEntitlementsFile, $$@) $$@
+                else ifeq ($(MACOSX_CODESIGN_MODE), debug)
+		  $(CODESIGN) -f -s - --entitlements $$(call GetEntitlementsFile, $$@) $$@
                 endif
   endif
 

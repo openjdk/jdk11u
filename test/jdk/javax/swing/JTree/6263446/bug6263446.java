@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -38,88 +38,112 @@ import javax.swing.tree.*;
 
 public class bug6263446 {
 
-    private static final String FIRST = "AAAAAAAAAAA";
+    private static final String FIRST = "AAAAA";
     private static final String SECOND = "BB";
     private static final String ALL = FIRST + " " + SECOND;
     private static JTree tree;
     private static Robot robot;
+    private static JFrame frame;
 
     public static void main(String[] args) throws Exception {
         robot = new Robot();
-        robot.setAutoDelay(50);
+        robot.setAutoDelay(100);
 
         SwingUtilities.invokeAndWait(new Runnable() {
-
+            @Override
             public void run() {
                 createAndShowGUI();
             }
         });
 
         robot.waitForIdle();
+        robot.delay(1000);
 
-        Point point = getClickPoint();
-        robot.mouseMove(point.x, point.y);
+        try {
+            Point point = getClickPoint();
+            robot.mouseMove(point.x, point.y);
+            robot.waitForIdle();
 
-        // click count 3
-        click(1);
-        assertNotEditing();
+            // click count 3
+            click(1);
+            robot.waitForIdle();
+            assertNotEditing();
 
-        click(2);
-        assertNotEditing();
+            click(2);
+            robot.waitForIdle();
+            assertNotEditing();
 
-        click(3);
-        assertEditing();
-        cancelCellEditing();
-        assertNotEditing();
+            click(3);
+            robot.waitForIdle();
+            assertEditing();
+            cancelCellEditing();
+            assertNotEditing();
 
-        click(4);
-        checkSelectedText(FIRST);
+            click(4);
+            robot.waitForIdle();
+            checkSelectedText(FIRST);
 
-        click(5);
-        checkSelectedText(ALL);
+            click(5);
+            robot.waitForIdle();
+            checkSelectedText(ALL);
 
-        // click count 4
-        setClickCountToStart(4);
+            // click count 4
+            setClickCountToStart(4);
+            robot.waitForIdle();
 
-        click(1);
-        assertNotEditing();
+            click(1);
+            robot.waitForIdle();
+            assertNotEditing();
 
-        click(2);
-        assertNotEditing();
+            click(2);
+            robot.waitForIdle();
+            assertNotEditing();
 
-        click(3);
-        assertNotEditing();
+            click(3);
+            robot.waitForIdle();
+            assertNotEditing();
 
-        click(4);
-        assertEditing();
-        cancelCellEditing();
-        assertNotEditing();
+            click(4);
+            robot.waitForIdle();
+            assertEditing();
+            cancelCellEditing();
+            assertNotEditing();
 
-        click(5);
-        checkSelectedText(FIRST);
+            click(5);
+            robot.waitForIdle();
+            checkSelectedText(FIRST);
 
-        click(6);
-        checkSelectedText(ALL);
+            click(6);
+            robot.waitForIdle();
+            checkSelectedText(ALL);
 
-        // start path editing
-        startPathEditing();
-        assertEditing();
+            // start path editing
+            startPathEditing();
+            assertEditing();
 
-        click(1);
-        checkSelection(null);
+            click(1);
+            robot.waitForIdle();
+            checkSelection(null);
 
-        click(2);
-        checkSelection(FIRST);
+            click(2);
+            robot.waitForIdle();
+            checkSelection(FIRST);
 
-        click(3);
-        checkSelection(ALL);
+            click(3);
+            robot.waitForIdle();
+            checkSelection(ALL);
+        } finally {
+            if (frame != null) {
+                SwingUtilities.invokeAndWait(() -> frame.dispose());
+            }
+        }
     }
 
     private static void click(int times) {
         robot.delay(500);
         for (int i = 0; i < times; i++) {
-            robot.mousePress(InputEvent.BUTTON1_MASK);
-            robot.mouseRelease(InputEvent.BUTTON1_MASK);
+            robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
+            robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
         }
     }
 
@@ -132,7 +156,7 @@ public class bug6263446 {
             public void run() {
                 Rectangle rect = tree.getRowBounds(0);
                 // UPDATE !!!
-                Point p = new Point(rect.x + rect.width / 2, rect.y + 2);
+                Point p = new Point(rect.x + rect.width/2, rect.y + rect.height/2);
                 SwingUtilities.convertPointToScreen(p, tree);
                 result[0] = p;
 
@@ -148,7 +172,7 @@ public class bug6263446 {
 
     private static void createAndShowGUI() {
 
-        JFrame frame = new JFrame();
+        frame = new JFrame();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         tree = new JTree(createTreeModel());
@@ -157,8 +181,11 @@ public class bug6263446 {
 
 
         frame.getContentPane().add(tree);
+        frame.setAlwaysOnTop(true);
         frame.pack();
+        frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+        frame.toFront();
     }
 
     private static void setClickCountToStart(final int clicks) throws Exception {
@@ -173,6 +200,7 @@ public class bug6263446 {
                     field.setAccessible(true);
                     DefaultCellEditor ce = (DefaultCellEditor) field.get(editor);
                     ce.setClickCountToStart(clicks);
+
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 } catch (NoSuchFieldException e) {
@@ -238,7 +266,9 @@ public class bug6263446 {
     private static void checkSelectedText(String sel) throws Exception {
         assertEditing();
         checkSelection(sel);
+        robot.waitForIdle();
         cancelCellEditing();
+        robot.waitForIdle();
         assertNotEditing();
     }
 

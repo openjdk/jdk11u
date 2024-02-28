@@ -297,6 +297,14 @@ help avoid quoting issues, the special value `%20`).
 The file names should be either absolute, or relative to the JTReg test root of
 the tests to be run.
 
+#### RUN_PROBLEM_LISTS
+
+Use the problem lists to select tests instead of excluding them.
+
+Set to `true` or `false`.
+If `true`, JTReg will use `-match:` option, otherwise `-exclude:` will be used.
+Default is `false`.
+
 
 #### OPTIONS
 Additional options to the JTReg test framework.
@@ -317,7 +325,15 @@ modules. If multiple modules are specified, they should be separated by space
 
 #### RETRY_COUNT
 
-Retry failed tests up to a set number of times. Defaults to 0.
+Retry failed tests up to a set number of times, until they pass.
+This allows to pass the tests with intermittent failures.
+Defaults to 0.
+
+#### REPEAT_COUNT
+
+Repeat the tests up to a set number of times, stopping at first failure.
+This helps to reproduce intermittent test failures.
+Defaults to 0.
 
 ### Gtest keywords
 

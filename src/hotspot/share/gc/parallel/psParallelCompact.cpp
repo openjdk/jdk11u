@@ -1753,7 +1753,7 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
   // miscellaneous bookkeeping.
   pre_compact();
 
-  PreGCValues pre_gc_values(heap);
+  const PreGCValues pre_gc_values(heap);
 
   // Get the compaction manager reserved for the VM thread.
   ParCompactionManager* const vmthread_cm =
@@ -1902,7 +1902,7 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
     young_gen->print_used_change(pre_gc_values.young_gen_used());
     old_gen->print_used_change(pre_gc_values.old_gen_used());
-    MetaspaceUtils::print_metaspace_change(pre_gc_values.metadata_used());
+    MetaspaceUtils::print_metaspace_change(pre_gc_values.metaspace_sizes());
 
     // Track memory usage and detect low memory
     MemoryService::track_memory_usage();
@@ -2118,16 +2118,18 @@ void PSParallelCompact::marking_phase(ParCompactionManager* cm,
     ReferenceProcessorStats stats;
     ReferenceProcessorPhaseTimes pt(&_gc_timer, ref_processor()->max_num_queues());
 
+    BarrierEnqueueDiscoveredFieldClosure enqueue;
+
     if (ref_processor()->processing_is_mt()) {
       ref_processor()->set_active_mt_degree(active_gc_threads);
 
       RefProcTaskExecutor task_executor;
       stats = ref_processor()->process_discovered_references(
-        is_alive_closure(), &mark_and_push_closure, &follow_stack_closure,
+        is_alive_closure(), &mark_and_push_closure, &enqueue, &follow_stack_closure,
         &task_executor, &pt);
     } else {
       stats = ref_processor()->process_discovered_references(
-        is_alive_closure(), &mark_and_push_closure, &follow_stack_closure, NULL,
+        is_alive_closure(), &mark_and_push_closure, &enqueue, &follow_stack_closure, NULL,
         &pt);
     }
 

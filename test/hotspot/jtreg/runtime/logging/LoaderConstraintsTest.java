@@ -25,6 +25,7 @@
 /*
  * @test LoaderConstraintsTest
  * @bug 8149996
+ * @requires vm.flagless
  * @modules java.base/jdk.internal.misc
  * @library /test/lib /runtime/testlibrary classes
  * @run driver LoaderConstraintsTest
@@ -58,7 +59,7 @@ public class LoaderConstraintsTest {
         Collections.addAll(argsList, "-Xmn8m");
         Collections.addAll(argsList, "-Dtest.classes=" + System.getProperty("test.classes","."));
         Collections.addAll(argsList, ClassUnloadTestMain.class.getName());
-        return ProcessTools.createJavaProcessBuilder(argsList.toArray(new String[argsList.size()]));
+        return ProcessTools.createJavaProcessBuilder(argsList);
     }
 
     public static void main(String... args) throws Exception {

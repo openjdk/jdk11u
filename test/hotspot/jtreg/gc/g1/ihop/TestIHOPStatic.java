@@ -28,6 +28,8 @@
  * @requires vm.gc.G1
  * @requires !vm.flightRecorder
  * @requires vm.opt.ExplicitGCInvokesConcurrent != true
+ * @requires !vm.graal.enabled
+ * @requires vm.compMode != "Xcomp"
  * @requires os.maxMemory > 1G
  * @library /test/lib /
  * @modules java.base/jdk.internal.misc
@@ -127,7 +129,7 @@ public class TestIHOPStatic {
         Collections.addAll(options, COMMON_OPTIONS);
         options.add(AppIHOP.class.getName());
 
-        OutputAnalyzer out = ProcessTools.executeTestJvm(options.toArray(new String[options.size()]));
+        OutputAnalyzer out = ProcessTools.executeTestJvm(options);
 
         if (out.getExitValue() != 0) {
             System.out.println(out.getOutput());

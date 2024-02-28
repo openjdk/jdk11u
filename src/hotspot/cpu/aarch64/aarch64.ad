@@ -1,6 +1,6 @@
 //
-// Copyright (c) 2003, 2019, Oracle and/or its affiliates. All rights reserved.
-// Copyright (c) 2014, 2019, Red Hat, Inc. All rights reserved.
+// Copyright (c) 2003, 2022, Oracle and/or its affiliates. All rights reserved.
+// Copyright (c) 2014, 2022, Red Hat, Inc. All rights reserved.
 // DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 //
 // This code is free software; you can redistribute it and/or modify it
@@ -969,6 +969,26 @@ reg_class v2_reg(
 // Class for 128 bit register v3
 reg_class v3_reg(
     V3, V3_H
+);
+
+// Class for 128 bit register v4
+reg_class v4_reg(
+    V4, V4_H
+);
+
+// Class for 128 bit register v5
+reg_class v5_reg(
+    V5, V5_H
+);
+
+// Class for 128 bit register v6
+reg_class v6_reg(
+    V6, V6_H
+);
+
+// Class for 128 bit register v7
+reg_class v7_reg(
+    V7, V7_H
 );
 
 // Singleton class for condition codes
@@ -2055,11 +2075,6 @@ int HandlerImpl::emit_deopt_handler(CodeBuffer& cbuf)
 
 const bool Matcher::match_rule_supported(int opcode) {
 
-  switch (opcode) {
-  default:
-    break;
-  }
-
   if (!has_match_rule(opcode)) {
     return false;
   }
@@ -2421,6 +2436,40 @@ typedef void (MacroAssembler::* mem_vector_insn)(FloatRegister Rt,
     }
   }
 
+  static void loadStore(MacroAssembler masm, mem_insn insn,
+                         Register reg, int opcode,
+                         Register base, int index, int size, int disp,
+                         int size_in_memory)
+  {
+    Address::extend scale;
+
+    // Hooboy, this is fugly.  We need a way to communicate to the
+    // encoder that the index needs to be sign extended, so we have to
+    // enumerate all the cases.
+    switch (opcode) {
+    case INDINDEXSCALEDI2L:
+    case INDINDEXSCALEDI2LN:
+    case INDINDEXI2L:
+    case INDINDEXI2LN:
+      scale = Address::sxtw(size);
+      break;
+    default:
+      scale = Address::lsl(size);
+    }
+
+    if (index == -1) {
+      Address addr(base, disp);
+      /* Fix up any out-of-range offsets. */
+      assert_different_registers(rscratch1, base);
+      assert_different_registers(rscratch1, reg);
+      addr = masm.legitimize_address(addr, size_in_memory, rscratch1);
+      (masm.*insn)(reg, addr);
+    } else {
+      assert(disp == 0, "unsupported address mode: disp = %d", disp);
+      (masm.*insn)(reg, Address(base, as_Register(index), scale));
+    }
+  }
+
   static void loadStore(MacroAssembler masm, mem_float_insn insn,
                          FloatRegister reg, int opcode,
                          Register base, int index, int size, int disp)
@@ -2503,120 +2552,160 @@ encode %{
 
   // BEGIN Non-volatile memory access
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrsbw(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrsbw, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrsb(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrsb, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrb(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrb, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrb(iRegL dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrb, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrshw(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrshw, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrsh(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrsh, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrh(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrh, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrh(iRegL dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrh, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrw(iRegI dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrw, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 4);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrw(iRegL dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrw, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 4);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrsw(iRegL dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrsw, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 4);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldr(iRegL dst, memory mem) %{
     Register dst_reg = as_Register($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldr, dst_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 8);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrs(vRegF dst, memory mem) %{
     FloatRegister dst_reg = as_FloatRegister($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrs, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrd(vRegD dst, memory mem) %{
     FloatRegister dst_reg = as_FloatRegister($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldrd, dst_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrvS(vecD dst, memory mem) %{
     FloatRegister dst_reg = as_FloatRegister($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldr, dst_reg, MacroAssembler::S,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrvD(vecD dst, memory mem) %{
     FloatRegister dst_reg = as_FloatRegister($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldr, dst_reg, MacroAssembler::D,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_ldrvQ(vecX dst, memory mem) %{
     FloatRegister dst_reg = as_FloatRegister($dst$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::ldr, dst_reg, MacroAssembler::Q,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strb(iRegI src, memory mem) %{
     Register src_reg = as_Register($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::strb, src_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strb0(memory mem) %{
     MacroAssembler _masm(&cbuf);
     loadStore(_masm, &MacroAssembler::strb, zr, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strb0_ordered(memory mem) %{
     MacroAssembler _masm(&cbuf);
     __ membar(Assembler::StoreStore);
@@ -2624,30 +2713,40 @@ encode %{
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strh(iRegI src, memory mem) %{
     Register src_reg = as_Register($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::strh, src_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strh0(memory mem) %{
     MacroAssembler _masm(&cbuf);
     loadStore(_masm, &MacroAssembler::strh, zr, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 2);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strw(iRegI src, memory mem) %{
     Register src_reg = as_Register($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::strw, src_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 4);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strw0(memory mem) %{
     MacroAssembler _masm(&cbuf);
     loadStore(_masm, &MacroAssembler::strw, zr, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 4);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_str(iRegL src, memory mem) %{
     Register src_reg = as_Register($src$$reg);
     // we sometimes get asked to store the stack pointer into the
@@ -2659,45 +2758,57 @@ encode %{
       src_reg = rscratch2;
     }
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::str, src_reg, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 8);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_str0(memory mem) %{
     MacroAssembler _masm(&cbuf);
     loadStore(_masm, &MacroAssembler::str, zr, $mem->opcode(),
-               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+               as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp, 8);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strs(vRegF src, memory mem) %{
     FloatRegister src_reg = as_FloatRegister($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::strs, src_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strd(vRegD src, memory mem) %{
     FloatRegister src_reg = as_FloatRegister($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::strd, src_reg, $mem->opcode(),
                as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strvS(vecD src, memory mem) %{
     FloatRegister src_reg = as_FloatRegister($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::str, src_reg, MacroAssembler::S,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strvD(vecD src, memory mem) %{
     FloatRegister src_reg = as_FloatRegister($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::str, src_reg, MacroAssembler::D,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
 
+  // This encoding class is generated automatically from ad_encode.m4.
+  // DO NOT EDIT ANYTHING IN THIS SECTION OF THE FILE
   enc_class aarch64_enc_strvQ(vecX src, memory mem) %{
     FloatRegister src_reg = as_FloatRegister($src$$reg);
     loadStore(MacroAssembler(&cbuf), &MacroAssembler::str, src_reg, MacroAssembler::Q,
        $mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
   %}
-
+ 
   // END Non-volatile memory access
 
   // volatile loads and stores
@@ -3023,7 +3134,8 @@ encode %{
         __ mov_metadata(dst_reg, (Metadata*)con);
       } else {
         assert(rtype == relocInfo::none, "unexpected reloc type");
-        if (con < (address)(uintptr_t)os::vm_page_size()) {
+        if (! __ is_valid_AArch64_address(con) ||
+            con < (address)(uintptr_t)os::vm_page_size()) {
           __ mov(dst_reg, con);
         } else {
           uint64_t offset;
@@ -4349,6 +4461,16 @@ operand immFPacked()
   interface(CONST_INTER);
 %}
 
+operand immI_positive()
+%{
+  predicate(n->get_int() > 0);
+  match(ConI);
+
+  op_cost(0);
+  format %{ %}
+  interface(CONST_INTER);
+%}
+
 // Narrow pointer operands
 // Narrow Pointer Immediate
 operand immN()
@@ -4776,6 +4898,42 @@ operand vRegD_V2()
 operand vRegD_V3()
 %{
   constraint(ALLOC_IN_RC(v3_reg));
+  match(RegD);
+  op_cost(0);
+  format %{ %}
+  interface(REG_INTER);
+%}
+
+operand vRegD_V4()
+%{
+  constraint(ALLOC_IN_RC(v4_reg));
+  match(RegD);
+  op_cost(0);
+  format %{ %}
+  interface(REG_INTER);
+%}
+
+operand vRegD_V5()
+%{
+  constraint(ALLOC_IN_RC(v5_reg));
+  match(RegD);
+  op_cost(0);
+  format %{ %}
+  interface(REG_INTER);
+%}
+
+operand vRegD_V6()
+%{
+  constraint(ALLOC_IN_RC(v6_reg));
+  match(RegD);
+  op_cost(0);
+  format %{ %}
+  interface(REG_INTER);
+%}
+
+operand vRegD_V7()
+%{
+  constraint(ALLOC_IN_RC(v7_reg));
   match(RegD);
   op_cost(0);
   format %{ %}
@@ -13798,10 +13956,10 @@ instruct overflowAddL_reg_imm(rFlagsReg cr, iRegL op1, immLAddSub op2)
 %{
   match(Set cr (OverflowAddL op1 op2));
 
-  format %{ "cmn   $op1, $op2\t# overflow check long" %}
+  format %{ "adds  zr, $op1, $op2\t# overflow check long" %}
   ins_cost(INSN_COST);
   ins_encode %{
-    __ cmn($op1$$Register, $op2$$constant);
+    __ adds(zr, $op1$$Register, $op2$$constant);
   %}
 
   ins_pipe(icmp_reg_imm);
@@ -15288,14 +15446,17 @@ instruct string_compareLU(iRegP_R1 str1, iRegI_R2 cnt1, iRegP_R3 str2, iRegI_R4 
 %}
 
 instruct string_indexofUU(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 cnt2,
-       iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2, iRegINoSp tmp3,
-       iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6, rFlagsReg cr)
+                          iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2,
+                          iRegINoSp tmp3, iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6,
+                          vRegD_V0 vtmp0, vRegD_V1 vtmp1, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::UU);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1, USE_KILL cnt2,
-         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5, TEMP tmp6, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (UU)" %}
+         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5, TEMP tmp6,
+         TEMP vtmp0, TEMP vtmp1, KILL cr);
+  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (UU) "
+            "# KILL $str1 $cnt1 $str2 $cnt2 $tmp1 $tmp2 $tmp3 $tmp4 $tmp5 $tmp6 V0-V1 cr" %}
 
   ins_encode %{
     __ string_indexof($str1$$Register, $str2$$Register,
@@ -15309,14 +15470,17 @@ instruct string_indexofUU(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 
 %}
 
 instruct string_indexofLL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 cnt2,
-       iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2, iRegINoSp tmp3,
-       iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6, rFlagsReg cr)
+                          iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2, iRegINoSp tmp3,
+                          iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6,
+                          vRegD_V0 vtmp0, vRegD_V1 vtmp1, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::LL);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1, USE_KILL cnt2,
-         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5, TEMP tmp6, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (LL)" %}
+         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5, TEMP tmp6,
+         TEMP vtmp0, TEMP vtmp1, KILL cr);
+  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (LL) "
+            "# KILL $str1 $cnt1 $str2 $cnt2 $tmp1 $tmp2 $tmp3 $tmp4 $tmp5 $tmp6 V0-V1 cr" %}
 
   ins_encode %{
     __ string_indexof($str1$$Register, $str2$$Register,
@@ -15330,14 +15494,17 @@ instruct string_indexofLL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 
 %}
 
 instruct string_indexofUL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 cnt2,
-       iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2, iRegINoSp tmp3,
-       iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6, rFlagsReg cr)
+                          iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2, iRegINoSp tmp3,
+                          iRegINoSp tmp4, iRegINoSp tmp5, iRegINoSp tmp6,
+                          vRegD_V0 vtmp0, vRegD_V1 vtmp1, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::UL);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1, USE_KILL cnt2,
-         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5, TEMP tmp6, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (UL)" %}
+         TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, TEMP tmp5,
+         TEMP tmp6, TEMP vtmp0, TEMP vtmp1, KILL cr);
+  format %{ "String IndexOf $str1,$cnt1,$str2,$cnt2 -> $result (UL) "
+            "# KILL $str1 cnt1 $str2 $cnt2 $tmp1 $tmp2 $tmp3 $tmp4 $tmp5 $tmp6 V0-V1 cr" %}
 
   ins_encode %{
     __ string_indexof($str1$$Register, $str2$$Register,
@@ -15351,14 +15518,15 @@ instruct string_indexofUL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2, iRegI_R2 
 %}
 
 instruct string_indexof_conUU(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2,
-                 immI_le_4 int_cnt2, iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2,
-                 iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
+                              immI_le_4 int_cnt2, iRegI_R0 result, iRegINoSp tmp1,
+                              iRegINoSp tmp2, iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::UU);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 int_cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1,
          TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (UU)" %}
+  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (UU) "
+            "# KILL $str1 $cnt1 $str2 $tmp1 $tmp2 $tmp3 $tmp4 cr" %}
 
   ins_encode %{
     int icnt2 = (int)$int_cnt2$$constant;
@@ -15372,14 +15540,15 @@ instruct string_indexof_conUU(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2,
 %}
 
 instruct string_indexof_conLL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2,
-                 immI_le_4 int_cnt2, iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2,
-                 iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
+                              immI_le_4 int_cnt2, iRegI_R0 result, iRegINoSp tmp1,
+                              iRegINoSp tmp2, iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::LL);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 int_cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1,
          TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (LL)" %}
+  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (LL) "
+            "# KILL $str1 $cnt1 $str2 $tmp1 $tmp2 $tmp3 $tmp4 cr" %}
 
   ins_encode %{
     int icnt2 = (int)$int_cnt2$$constant;
@@ -15393,14 +15562,15 @@ instruct string_indexof_conLL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2,
 %}
 
 instruct string_indexof_conUL(iRegP_R1 str1, iRegI_R4 cnt1, iRegP_R3 str2,
-                 immI_1 int_cnt2, iRegI_R0 result, iRegINoSp tmp1, iRegINoSp tmp2,
-                 iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
+                              immI_1 int_cnt2, iRegI_R0 result, iRegINoSp tmp1,
+                              iRegINoSp tmp2, iRegINoSp tmp3, iRegINoSp tmp4, rFlagsReg cr)
 %{
   predicate(((StrIndexOfNode*)n)->encoding() == StrIntrinsicNode::UL);
   match(Set result (StrIndexOf (Binary str1 cnt1) (Binary str2 int_cnt2)));
   effect(USE_KILL str1, USE_KILL str2, USE_KILL cnt1,
          TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, KILL cr);
-  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (UL)" %}
+  format %{ "String IndexOf $str1,$cnt1,$str2,$int_cnt2 -> $result (UL) "
+            "# KILL $str1 $cnt1 $str2 $tmp1 $tmp2 $tmp3 $tmp4 cr" %}
 
   ins_encode %{
     int icnt2 = (int)$int_cnt2$$constant;
@@ -15465,13 +15635,17 @@ instruct string_equalsU(iRegP_R1 str1, iRegP_R3 str2, iRegI_R4 cnt,
 
 instruct array_equalsB(iRegP_R1 ary1, iRegP_R2 ary2, iRegI_R0 result,
                        iRegP_R3 tmp1, iRegP_R4 tmp2, iRegP_R5 tmp3,
+                       vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2, vRegD_V3 vtmp3,
+                       vRegD_V4 vtmp4, vRegD_V5 vtmp5, vRegD_V6 vtmp6, vRegD_V7 vtmp7,
                        iRegP_R10 tmp, rFlagsReg cr)
 %{
   predicate(((AryEqNode*)n)->encoding() == StrIntrinsicNode::LL);
   match(Set result (AryEq ary1 ary2));
-  effect(KILL tmp, USE_KILL ary1, USE_KILL ary2, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+  effect(KILL tmp, USE_KILL ary1, USE_KILL ary2, TEMP tmp1, TEMP tmp2, TEMP tmp3,
+         TEMP vtmp0, TEMP vtmp1, TEMP vtmp2, TEMP vtmp3, TEMP vtmp4, TEMP vtmp5,
+         TEMP vtmp6, TEMP vtmp7, KILL cr);
 
-  format %{ "Array Equals $ary1,ary2 -> $result    // KILL $tmp" %}
+  format %{ "Array Equals $ary1,ary2 -> $result # KILL $ary1 $ary2 $tmp $tmp1 $tmp2 $tmp3 V0-V7 cr" %}
   ins_encode %{
     address tpc = __ arrays_equals($ary1$$Register, $ary2$$Register,
                                    $tmp1$$Register, $tmp2$$Register, $tmp3$$Register,
@@ -15486,13 +15660,17 @@ instruct array_equalsB(iRegP_R1 ary1, iRegP_R2 ary2, iRegI_R0 result,
 
 instruct array_equalsC(iRegP_R1 ary1, iRegP_R2 ary2, iRegI_R0 result,
                        iRegP_R3 tmp1, iRegP_R4 tmp2, iRegP_R5 tmp3,
+                       vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2, vRegD_V3 vtmp3,
+                       vRegD_V4 vtmp4, vRegD_V5 vtmp5, vRegD_V6 vtmp6, vRegD_V7 vtmp7,
                        iRegP_R10 tmp, rFlagsReg cr)
 %{
   predicate(((AryEqNode*)n)->encoding() == StrIntrinsicNode::UU);
   match(Set result (AryEq ary1 ary2));
-  effect(KILL tmp, USE_KILL ary1, USE_KILL ary2, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+  effect(KILL tmp, USE_KILL ary1, USE_KILL ary2, TEMP tmp1, TEMP tmp2, TEMP tmp3,
+         TEMP vtmp0, TEMP vtmp1, TEMP vtmp2, TEMP vtmp3, TEMP vtmp4, TEMP vtmp5,
+         TEMP vtmp6, TEMP vtmp7, KILL cr);
 
-  format %{ "Array Equals $ary1,ary2 -> $result    // KILL $tmp" %}
+  format %{ "Array Equals $ary1,ary2 -> $result # KILL $ary1 $ary2 $tmp $tmp1 $tmp2 $tmp3 V0-V7 cr" %}
   ins_encode %{
     address tpc = __ arrays_equals($ary1$$Register, $ary2$$Register,
                                    $tmp1$$Register, $tmp2$$Register, $tmp3$$Register,
@@ -15522,35 +15700,40 @@ instruct has_negatives(iRegP_R1 ary1, iRegI_R2 len, iRegI_R0 result, rFlagsReg c
 
 // fast char[] to byte[] compression
 instruct string_compress(iRegP_R2 src, iRegP_R1 dst, iRegI_R3 len,
-                         vRegD_V0 tmp1, vRegD_V1 tmp2,
-                         vRegD_V2 tmp3, vRegD_V3 tmp4,
+                         vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2,
+                         vRegD_V3 vtmp3, vRegD_V4 vtmp4, vRegD_V5 vtmp5,
                          iRegI_R0 result, rFlagsReg cr)
 %{
   match(Set result (StrCompressedCopy src (Binary dst len)));
-  effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, USE_KILL src, USE_KILL dst, USE_KILL len, KILL cr);
+  effect(TEMP vtmp0, TEMP vtmp1, TEMP vtmp2, TEMP vtmp3, TEMP vtmp4, TEMP vtmp5,
+         USE_KILL src, USE_KILL dst, USE_KILL len, KILL cr);
 
-  format %{ "String Compress $src,$dst -> $result    // KILL R1, R2, R3, R4" %}
+  format %{ "String Compress $src,$dst -> $result # KILL $src $dst $len V0-V5 cr" %}
   ins_encode %{
     __ char_array_compress($src$$Register, $dst$$Register, $len$$Register,
-                           $tmp1$$FloatRegister, $tmp2$$FloatRegister,
-                           $tmp3$$FloatRegister, $tmp4$$FloatRegister,
+                           $vtmp0$$FloatRegister, $vtmp1$$FloatRegister,
+                           $vtmp2$$FloatRegister, $vtmp3$$FloatRegister,
+                           $vtmp4$$FloatRegister, $vtmp5$$FloatRegister,
                            $result$$Register);
   %}
   ins_pipe( pipe_slow );
 %}
 
 // fast byte[] to char[] inflation
-instruct string_inflate(Universe dummy, iRegP_R0 src, iRegP_R1 dst, iRegI_R2 len,
-                        vRegD_V0 tmp1, vRegD_V1 tmp2, vRegD_V2 tmp3, iRegP_R3 tmp4, rFlagsReg cr)
+instruct string_inflate(Universe dummy, iRegP_R0 src, iRegP_R1 dst, iRegI_R2 len, iRegP_R3 tmp,
+                        vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2, vRegD_V3 vtmp3,
+                        vRegD_V4 vtmp4, vRegD_V5 vtmp5, vRegD_V6 vtmp6, rFlagsReg cr)
 %{
   match(Set dummy (StrInflatedCopy src (Binary dst len)));
-  effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, TEMP tmp4, USE_KILL src, USE_KILL dst, USE_KILL len, KILL cr);
+  effect(TEMP vtmp0, TEMP vtmp1, TEMP vtmp2, TEMP vtmp3,
+         TEMP vtmp4, TEMP vtmp5, TEMP vtmp6, TEMP tmp,
+         USE_KILL src, USE_KILL dst, USE_KILL len, KILL cr);
 
-  format %{ "String Inflate $src,$dst    // KILL $tmp1, $tmp2" %}
+  format %{ "String Inflate $src,$dst # KILL $tmp $src $dst $len V0-V6 cr" %}
   ins_encode %{
     address tpc = __ byte_array_inflate($src$$Register, $dst$$Register, $len$$Register,
-                                        $tmp1$$FloatRegister, $tmp2$$FloatRegister,
-                                        $tmp3$$FloatRegister, $tmp4$$Register);
+                                        $vtmp0$$FloatRegister, $vtmp1$$FloatRegister,
+                                        $vtmp2$$FloatRegister, $tmp$$Register);
     if (tpc == NULL) {
       ciEnv::current()->record_failure("CodeCache is full");
       return;
@@ -15561,19 +15744,20 @@ instruct string_inflate(Universe dummy, iRegP_R0 src, iRegP_R1 dst, iRegI_R2 len
 
 // encode char[] to byte[] in ISO_8859_1
 instruct encode_iso_array(iRegP_R2 src, iRegP_R1 dst, iRegI_R3 len,
-                          vRegD_V0 Vtmp1, vRegD_V1 Vtmp2,
-                          vRegD_V2 Vtmp3, vRegD_V3 Vtmp4,
+                          vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2,
+                          vRegD_V3 vtmp3, vRegD_V4 vtmp4, vRegD_V5 vtmp5,
                           iRegI_R0 result, rFlagsReg cr)
 %{
   match(Set result (EncodeISOArray src (Binary dst len)));
-  effect(USE_KILL src, USE_KILL dst, USE_KILL len,
-         KILL Vtmp1, KILL Vtmp2, KILL Vtmp3, KILL Vtmp4, KILL cr);
+  effect(USE_KILL src, USE_KILL dst, USE_KILL len, KILL vtmp0, KILL vtmp1,
+         KILL vtmp2, KILL vtmp3, KILL vtmp4, KILL vtmp5, KILL cr);
 
-  format %{ "Encode array $src,$dst,$len -> $result" %}
+  format %{ "Encode array $src,$dst,$len -> $result # KILL $src $dst $len V0-V5 cr" %}
   ins_encode %{
     __ encode_iso_array($src$$Register, $dst$$Register, $len$$Register,
-         $result$$Register, $Vtmp1$$FloatRegister,  $Vtmp2$$FloatRegister,
-         $Vtmp3$$FloatRegister,  $Vtmp4$$FloatRegister);
+                        $result$$Register, $vtmp0$$FloatRegister, $vtmp1$$FloatRegister,
+                        $vtmp2$$FloatRegister, $vtmp3$$FloatRegister,
+                        $vtmp4$$FloatRegister, $vtmp5$$FloatRegister);
   %}
   ins_pipe( pipe_class_memory );
 %}
@@ -17341,7 +17525,7 @@ instruct vsll16B_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsra8B_imm(vecD dst, vecD src, immI shift) %{
+instruct vsra8B_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 4 ||
             n->as_Vector()->length() == 8);
   match(Set dst (RShiftVB src shift));
@@ -17356,7 +17540,7 @@ instruct vsra8B_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsra16B_imm(vecX dst, vecX src, immI shift) %{
+instruct vsra16B_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 16);
   match(Set dst (RShiftVB src shift));
   ins_cost(INSN_COST);
@@ -17370,7 +17554,7 @@ instruct vsra16B_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsrl8B_imm(vecD dst, vecD src, immI shift) %{
+instruct vsrl8B_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 4 ||
             n->as_Vector()->length() == 8);
   match(Set dst (URShiftVB src shift));
@@ -17390,7 +17574,7 @@ instruct vsrl8B_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsrl16B_imm(vecX dst, vecX src, immI shift) %{
+instruct vsrl16B_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 16);
   match(Set dst (URShiftVB src shift));
   ins_cost(INSN_COST);
@@ -17545,7 +17729,7 @@ instruct vsll8S_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsra4S_imm(vecD dst, vecD src, immI shift) %{
+instruct vsra4S_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2 ||
             n->as_Vector()->length() == 4);
   match(Set dst (RShiftVS src shift));
@@ -17560,7 +17744,7 @@ instruct vsra4S_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsra8S_imm(vecX dst, vecX src, immI shift) %{
+instruct vsra8S_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 8);
   match(Set dst (RShiftVS src shift));
   ins_cost(INSN_COST);
@@ -17574,7 +17758,7 @@ instruct vsra8S_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsrl4S_imm(vecD dst, vecD src, immI shift) %{
+instruct vsrl4S_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2 ||
             n->as_Vector()->length() == 4);
   match(Set dst (URShiftVS src shift));
@@ -17594,7 +17778,7 @@ instruct vsrl4S_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsrl8S_imm(vecX dst, vecX src, immI shift) %{
+instruct vsrl8S_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 8);
   match(Set dst (URShiftVS src shift));
   ins_cost(INSN_COST);
@@ -17733,7 +17917,7 @@ instruct vsll4I_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsra2I_imm(vecD dst, vecD src, immI shift) %{
+instruct vsra2I_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2);
   match(Set dst (RShiftVI src shift));
   ins_cost(INSN_COST);
@@ -17746,7 +17930,7 @@ instruct vsra2I_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsra4I_imm(vecX dst, vecX src, immI shift) %{
+instruct vsra4I_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 4);
   match(Set dst (RShiftVI src shift));
   ins_cost(INSN_COST);
@@ -17759,7 +17943,7 @@ instruct vsra4I_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsrl2I_imm(vecD dst, vecD src, immI shift) %{
+instruct vsrl2I_imm(vecD dst, vecD src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2);
   match(Set dst (URShiftVI src shift));
   ins_cost(INSN_COST);
@@ -17772,7 +17956,7 @@ instruct vsrl2I_imm(vecD dst, vecD src, immI shift) %{
   ins_pipe(vshift64_imm);
 %}
 
-instruct vsrl4I_imm(vecX dst, vecX src, immI shift) %{
+instruct vsrl4I_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 4);
   match(Set dst (URShiftVI src shift));
   ins_cost(INSN_COST);
@@ -17845,7 +18029,7 @@ instruct vsll2L_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsra2L_imm(vecX dst, vecX src, immI shift) %{
+instruct vsra2L_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2);
   match(Set dst (RShiftVL src shift));
   ins_cost(INSN_COST);
@@ -17858,7 +18042,7 @@ instruct vsra2L_imm(vecX dst, vecX src, immI shift) %{
   ins_pipe(vshift128_imm);
 %}
 
-instruct vsrl2L_imm(vecX dst, vecX src, immI shift) %{
+instruct vsrl2L_imm(vecX dst, vecX src, immI_positive shift) %{
   predicate(n->as_Vector()->length() == 2);
   match(Set dst (URShiftVL src shift));
   ins_cost(INSN_COST);

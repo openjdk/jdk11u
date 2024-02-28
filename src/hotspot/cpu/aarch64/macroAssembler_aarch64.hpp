@@ -27,6 +27,7 @@
 #define CPU_AARCH64_VM_MACROASSEMBLER_AARCH64_HPP
 
 #include "asm/assembler.inline.hpp"
+#include "runtime/vm_version.hpp"
 
 // MacroAssembler extends Assembler by frequently used macros.
 //
@@ -88,7 +89,7 @@ class MacroAssembler: public Assembler {
       = (operand_valid_for_logical_immediate(false /*is32*/,
                                              (uint64_t)Universe::narrow_klass_base())
          && ((uint64_t)Universe::narrow_klass_base()
-             > (1UL << log2_intptr(Universe::narrow_klass_range()))));
+             > (1ULL << log2_intptr(checked_cast<uintptr_t>(Universe::narrow_klass_range())))));
   }
 
  // These routines should emit JVMTI PopFrame and ForceEarlyReturn handling code.
@@ -1244,12 +1245,14 @@ public:
   void char_array_compress(Register src, Register dst, Register len,
                            FloatRegister tmp1Reg, FloatRegister tmp2Reg,
                            FloatRegister tmp3Reg, FloatRegister tmp4Reg,
+                           FloatRegister tmp5Reg, FloatRegister tmp6Reg,
                            Register result);
 
   void encode_iso_array(Register src, Register dst,
                         Register len, Register result,
                         FloatRegister Vtmp1, FloatRegister Vtmp2,
-                        FloatRegister Vtmp3, FloatRegister Vtmp4);
+                        FloatRegister Vtmp3, FloatRegister Vtmp4,
+                        FloatRegister Vtmp5, FloatRegister Vtmp6);
   void string_indexof(Register str1, Register str2,
                       Register cnt1, Register cnt2,
                       Register tmp1, Register tmp2,

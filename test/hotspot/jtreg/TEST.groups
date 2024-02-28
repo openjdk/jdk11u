@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # This code is free software; you can redistribute it and/or modify it
@@ -21,12 +21,19 @@
 # questions.
 #
 
+# All tests
+
+all = \
+  :hotspot_all
+
 hotspot_all = \
   /
 
 hotspot_all_no_apps = \
   / \
   -applications
+
+# Component test groups
 
 hotspot_compiler = \
   compiler
@@ -71,6 +78,9 @@ hotspot_native_sanity = \
 hotspot_containers = \
   containers
 
+hotspot_compiler_arraycopy = \
+  compiler/arraycopy/stress
+
 tier1_common = \
   sanity/BasicVMTest.java \
   gtest/GTestWrapper.java
@@ -90,7 +100,9 @@ hotspot_not_fast_compiler = \
 hotspot_slow_compiler = \
   compiler/codegen/aes \
   compiler/codecache/stress \
-  compiler/gcbarriers/PreserveFPRegistersTest.java
+  compiler/gcbarriers/PreserveFPRegistersTest.java \
+  resourcehogs/compiler \
+  :hotspot_compiler_arraycopy
 
 tier1_compiler_1 = \
   compiler/arraycopy/ \
@@ -106,6 +118,7 @@ tier1_compiler_1 = \
   -compiler/c2/Test6792161.java \
   -compiler/c2/Test6603011.java \
   -compiler/c2/Test6912517.java \
+  -:hotspot_slow_compiler
 
 tier1_compiler_2 = \
   compiler/classUnloading/ \
@@ -281,11 +294,6 @@ tier1_runtime = \
  -runtime/modules/ModuleStress/ExportModuleStressTest.java \
  -runtime/modules/ModuleStress/ModuleStressGC.java \
  -runtime/NMT \
- -runtime/RedefineObject/TestRedefineObject.java \
- -runtime/RedefineTests/RedefineLeak.java \
- -runtime/RedefineTests/RedefinePreviousVersions.java \
- -runtime/RedefineTests/RedefineRunningMethods.java \
- -runtime/RedefineTests/RedefineRunningMethodsWithBacktrace.java \
  -runtime/ReservedStack \
  -runtime/SelectionResolution/AbstractMethodErrorTest.java \
  -runtime/SelectionResolution/IllegalAccessErrorTest.java \
@@ -325,9 +333,30 @@ tier1_runtime_appcds_exclude = \
   runtime/appcds/ \
   -:tier1_runtime_appcds
 
+# This group should be executed with "jtreg -Dtest.cds.run.with.jfr=true ..."
+# to test interaction between AppCDS and JFR. It also has the side effect of
+# testing JVMTI ClassFileLoadHook.
+#
+# The excluded tests disallow the jdk.jfr module, which is required to
+# run with JFR.
+hotspot_appcds_with_jfr = \
+  runtime/appcds/ \
+ -runtime/appcds/cacheObject/ArchivedModuleCompareTest.java \
+ -runtime/appcds/jigsaw/classpathtests/BootAppendTests.java \
+ -runtime/appcds/jigsaw/classpathtests/ClassPathTests.java \
+ -runtime/appcds/jigsaw/classpathtests/EmptyClassInBootClassPath.java \
+ -runtime/appcds/jigsaw/JigsawOptionsCombo.java \
+ -runtime/appcds/jigsaw/modulepath/MainModuleOnly.java
+
 tier1_serviceability = \
   serviceability/dcmd/compiler \
   -serviceability/dcmd/compiler/CompilerQueueTest.java \
+  serviceability/jvmti/RedefineClasses \
+  -serviceability/jvmti/RedefineClasses/RedefineLeak.java \
+  -serviceability/jvmti/RedefineClasses/RedefinePreviousVersions.java \
+  -serviceability/jvmti/RedefineClasses/RedefineRunningMethods.java \
+  -serviceability/jvmti/RedefineClasses/RedefineRunningMethodsWithBacktrace.java \
+  -serviceability/jvmti/RedefineClasses/TestRedefineObject.java \
   serviceability/logging \
   serviceability/sa \
   -serviceability/sa/ClhsdbScanOops.java \
@@ -394,6 +423,21 @@ hotspot_rest_runtime = \
   -:tier1_runtime_appcds_exclude \
   -:hotspot_nmt \
   -:hotspot_tier2_runtime_platform_agnostic
+
+jcstress_part1 = \
+  applications/jcstress/seqcst.java
+
+jcstress_part2 = \
+  applications/jcstress/accessAtomic.java \
+  applications/jcstress/acqrel.java \
+  applications/jcstress/atomics.java \
+  applications/jcstress/coherence.java \
+  applications/jcstress/locks.java
+
+jcstress_part3 = \
+  applications/jcstress \
+  -:jcstress_part1 \
+  -:jcstress_part2
 
 # Stress tests against information provided by VM via JMX
 vmTestbase_nsk_monitoring = \
@@ -497,7 +541,7 @@ vmTestbase_largepages = \
   vmTestbase/metaspace/stressDictionary/StressDictionary.java \
   vmTestbase/metaspace/stressHierarchy/stressHierarchy001/TestDescription.java \
   vmTestbase/metaspace/stressHierarchy/stressHierarchy011/TestDescription.java \
-  vmTestbase/metaspace/flags/maxMetaspaceSize/TestDescription.java \
+  vmTestbase/metaspace/flags/maxMetaspaceSize/TestMaxMetaspaceSize.java \
   vmTestbase/metaspace/shrink_grow/ShrinkGrowTest/ShrinkGrowTest.java \
   vmTestbase/metaspace/shrink_grow/ShrinkGrowMultiJVM/ShrinkGrowMultiJVM.java \
   vmTestbase/metaspace/shrink_grow/CompressedClassSpaceSize/TestDescription.java

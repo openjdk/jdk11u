@@ -53,6 +53,7 @@ import com.sun.nio.sctp.MessageInfo;
 import com.sun.nio.sctp.SctpChannel;
 import com.sun.nio.sctp.SctpMultiChannel;
 import com.sun.nio.sctp.SctpSocketOption;
+import sun.net.util.IPAddressUtil;
 import sun.nio.ch.DirectBuffer;
 import sun.nio.ch.NativeThread;
 import sun.nio.ch.IOStatus;
@@ -288,7 +289,8 @@ public class SctpMultiChannelImpl extends SctpMultiChannel
     @Override
     public void implCloseSelectableChannel() throws IOException {
         synchronized (stateLock) {
-            SctpNet.preClose(fdVal);
+            if (state != ChannelState.KILLED)
+                SctpNet.preClose(fdVal);
 
             if (receiverThread != 0)
                 NativeThread.signal(receiverThread);
@@ -892,6 +894,9 @@ public class SctpMultiChannelImpl extends SctpMultiChannel
         if (target != null) {
             InetSocketAddress isa = Net.checkAddress(target);
             addr = isa.getAddress();
+            if (addr.isLinkLocalAddress()) {
+                addr = IPAddressUtil.toScopedAddress(addr);
+            }
             port = isa.getPort();
         }
         int pos = bb.position();

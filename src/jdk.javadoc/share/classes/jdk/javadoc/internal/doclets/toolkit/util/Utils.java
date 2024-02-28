@@ -1016,9 +1016,9 @@ public class Utils {
     }
 
     /**
-     * Return true if this class is linkable and false if we can't link to the
-     * desired class.
-     * <br>
+     * Returns true if this class is linkable and false if we can't link to it.
+     *
+     * <p>
      * <b>NOTE:</b>  You can only link to external classes if they are public or
      * protected.
      *
@@ -1031,6 +1031,43 @@ public class Utils {
                 (isIncluded(typeElem) && configuration.isGeneratedDoc(typeElem))) ||
             (configuration.extern.isExternal(typeElem) &&
                 (isPublic(typeElem) || isProtected(typeElem)));
+    }
+
+    /**
+     * Returns true if an element is linkable in the context of a given type element.
+     *
+     * If the element is a type element, it delegates to {@link #isLinkable(TypeElement)}.
+     * Otherwise, the element is linkable if any of the following are true:
+     * <ul>
+     * <li>it is "included" (see {@link jdk.javadoc.doclet})
+     * <li>it is inherited from an undocumented supertype
+     * <li>it is a public or protected member of an external API
+     * </ul>
+     *
+     * @param typeElem the type element
+     * @param elem the element
+     * @return whether or not the element is linkable
+     */
+    public boolean isLinkable(TypeElement typeElem, Element elem) {
+        if (isTypeElement(elem)) {
+            return isLinkable((TypeElement) elem); // defer to existing behavior
+        }
+
+        if (isIncluded(elem)) {
+            return true;
+        }
+
+        // Allow for the behavior that members of undocumented supertypes
+        // may be included in documented types
+        TypeElement enclElem = getEnclosingTypeElement(elem);
+        if (typeElem != enclElem && isSubclassOf(typeElem, enclElem)) {
+            return true;
+        }
+
+        // Allow for external members
+        return isLinkable(typeElem)
+                    && configuration.extern.isExternal(typeElem)
+                    && (isPublic(elem) || isProtected(elem));
     }
 
     /**
@@ -2975,11 +3012,11 @@ public class Utils {
      */
     public TreePath getTreePath(Element e) {
         DocCommentDuo duo = dcTreeCache.get(e);
-        if (isValidDuo(duo) && duo.treePath != null) {
+        if (duo != null && duo.treePath != null) {
             return duo.treePath;
         }
         duo = configuration.cmtUtils.getSyntheticCommentDuo(e);
-        if (isValidDuo(duo) && duo.treePath != null) {
+        if (duo != null && duo.treePath != null) {
             return duo.treePath;
         }
         Map<Element, TreePath> elementToTreePath = configuration.workArounds.getElementToTreePath();
@@ -3005,20 +3042,20 @@ public class Utils {
         ElementKind kind = element.getKind();
         if (kind == ElementKind.PACKAGE || kind == ElementKind.OTHER) {
             duo = dcTreeCache.get(element); // local cache
-            if (!isValidDuo(duo) && kind == ElementKind.PACKAGE) {
+            if (duo == null && kind == ElementKind.PACKAGE) {
                 // package-info.java
                 duo = getDocCommentTuple(element);
             }
-            if (!isValidDuo(duo)) {
+            if (duo == null) {
                 // package.html or overview.html
                 duo = configuration.cmtUtils.getHtmlCommentDuo(element); // html source
             }
         } else {
             duo = configuration.cmtUtils.getSyntheticCommentDuo(element);
-            if (!isValidDuo(duo)) {
+            if (duo == null) {
                 duo = dcTreeCache.get(element); // local cache
             }
-            if (!isValidDuo(duo)) {
+            if (duo == null) {
                 duo = getDocCommentTuple(element); // get the real mccoy
             }
         }

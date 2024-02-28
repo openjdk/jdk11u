@@ -69,25 +69,14 @@ import java.util.Arrays;
 
 public class TestDriver {
     public static void main(String[] args) throws Exception {
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
-                true,
+        ProcessBuilder pb = ProcessTools.createTestJvm(
                 "-agentlib:retransform003-01=id=1 can_retransform_classes=1",
                 "-agentlib:retransform003-02=id=2 can_retransform_classes=0",
                 "-agentlib:retransform003-03=id=3 can_retransform_classes=1",
                 nsk.jvmti.RetransformClasses.retransform003.class.getName()
         );
 
-        String envName;
-        if (Platform.isWindows()) {
-            envName = "PATH";
-        } else if (Platform.isOSX()) {
-            envName = "DYLD_LIBRARY_PATH";
-        } else if (Platform.isAix()) {
-            envName = "LIBPATH";
-        } else {
-            envName = "LD_LIBRARY_PATH";
-        }
-
+        String envName = Platform.sharedLibraryPathVariableName();
         pb.environment()
           .merge(envName, ".", (x, y) -> y + File.pathSeparator + x);
 

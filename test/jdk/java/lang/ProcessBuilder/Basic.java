@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2003, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -27,10 +27,12 @@
  *      5026830 5023243 5070673 4052517 4811767 6192449 6397034 6413313
  *      6464154 6523983 6206031 4960438 6631352 6631966 6850957 6850958
  *      4947220 7018606 7034570 4244896 5049299 8003488 8054494 8058464
- *      8067796 8224905 8263729 8265173
+ *      8067796 8224905 8263729 8265173 8282219
  * @key intermittent
  * @summary Basic tests for Process and Environment Variable code
  * @modules java.base/java.lang:open
+ * @requires !vm.musl
+ * @library /test/lib
  * @run main/othervm/timeout=300 Basic
  * @run main/othervm/timeout=300 -Djdk.lang.Process.launchMechanism=fork Basic
  * @author Martin Buchholz
@@ -39,7 +41,8 @@
 /*
  * @test
  * @modules java.base/java.lang:open
- * @requires (os.family == "linux")
+ * @requires (os.family == "linux" & !vm.musl)
+ * @library /test/lib
  * @run main/othervm/timeout=300 -Djdk.lang.Process.launchMechanism=posix_spawn Basic
  */
 
@@ -62,6 +65,8 @@ import static java.lang.System.getenv;
 import static java.lang.System.out;
 import static java.lang.Boolean.TRUE;
 import static java.util.AbstractMap.SimpleImmutableEntry;
+
+import jdk.test.lib.Platform;
 
 public class Basic {
 
@@ -400,8 +405,8 @@ public class Basic {
                 if (failed != 0) throw new Error("null PATH");
             } else if (action.equals("PATH search algorithm")) {
                 equal(System.getenv("PATH"), "dir1:dir2:");
-                check(new File("/bin/true").exists());
-                check(new File("/bin/false").exists());
+                check(new File(TrueExe.path()).exists());
+                check(new File(FalseExe.path()).exists());
                 String[] cmd = {"prog"};
                 ProcessBuilder pb1 = new ProcessBuilder(cmd);
                 ProcessBuilder pb2 = new ProcessBuilder(cmd);
@@ -442,13 +447,13 @@ public class Basic {
                         checkPermissionDenied(pb);
 
                         // continue searching if EACCES
-                        copy("/bin/true", "dir2/prog");
+                        copy(TrueExe.path(), "dir2/prog");
                         equal(run(pb).exitValue(), True.exitValue());
                         new File("dir1/prog").delete();
                         new File("dir2/prog").delete();
 
                         new File("dir2/prog").mkdirs();
-                        copy("/bin/true", "dir1/prog");
+                        copy(TrueExe.path(), "dir1/prog");
                         equal(run(pb).exitValue(), True.exitValue());
 
                         // Check empty PATH component means current directory.
@@ -464,10 +469,10 @@ public class Basic {
                             pb.command(command);
                             File prog = new File("./prog");
                             // "Normal" binaries
-                            copy("/bin/true", "./prog");
+                            copy(TrueExe.path(), "./prog");
                             equal(run(pb).exitValue(),
                                   True.exitValue());
-                            copy("/bin/false", "./prog");
+                            copy(FalseExe.path(), "./prog");
                             equal(run(pb).exitValue(),
                                   False.exitValue());
                             prog.delete();
@@ -522,12 +527,12 @@ public class Basic {
                         new File("dir2/prog").delete();
                         new File("prog").delete();
                         new File("dir3").mkdirs();
-                        copy("/bin/true", "dir1/prog");
-                        copy("/bin/false", "dir3/prog");
+                        copy(TrueExe.path(), "dir1/prog");
+                        copy(FalseExe.path(), "dir3/prog");
                         pb.environment().put("PATH","dir3");
                         equal(run(pb).exitValue(), True.exitValue());
-                        copy("/bin/true", "dir3/prog");
-                        copy("/bin/false", "dir1/prog");
+                        copy(TrueExe.path(), "dir3/prog");
+                        copy(FalseExe.path(), "dir1/prog");
                         equal(run(pb).exitValue(), False.exitValue());
 
                     } finally {
@@ -659,6 +664,43 @@ public class Basic {
                     return rc;
                 }
             } catch (Throwable t) { unexpected(t); return -1; }
+        }
+    }
+
+    // On Alpine Linux, /bin/true and /bin/false are just links to /bin/busybox.
+    // Some tests copy /bin/true and /bin/false to files with a different filename.
+    // However, copying the busbox executable into a file with a different name
+    // won't result in the expected return codes. As workaround, we create
+    // executable files that can be copied and produce the expected return
+    // values.
+
+    private static class TrueExe {
+        public static String path() { return path; }
+        private static final String path = path0();
+        private static String path0(){
+            if (!Platform.isBusybox("/bin/true")) {
+                return "/bin/true";
+            } else {
+                File trueExe = new File("true");
+                setFileContents(trueExe, "#!/bin/true\n");
+                trueExe.setExecutable(true);
+                return trueExe.getAbsolutePath();
+            }
+        }
+    }
+
+    private static class FalseExe {
+        public static String path() { return path; }
+        private static final String path = path0();
+        private static String path0(){
+            if (!Platform.isBusybox("/bin/false")) {
+                return "/bin/false";
+            } else {
+                File falseExe = new File("false");
+                setFileContents(falseExe, "#!/bin/false\n");
+                falseExe.setExecutable(true);
+                return falseExe.getAbsolutePath();
+            }
         }
     }
 
@@ -1827,6 +1869,8 @@ public class Basic {
             String[] envpOth = {"=ExitValue=3", "=C:=\\"};
             if (Windows.is()) {
                 envp = envpWin;
+            } else if (AIX.is()) {
+                envp = new String[] {"=ExitValue=3", "=C:=\\", "LIBPATH=" + libpath};
             } else {
                 envp = envpOth;
             }
@@ -1875,6 +1919,9 @@ public class Basic {
             String[] envp;
             if (Windows.is()) {
                 envp = envpWin;
+            } else if (AIX.is()) {
+                envp = new String[] {"LC_ALL=C\u0000\u0000", // Yuck!
+                        "FO\u0000=B\u0000R", "LIBPATH=" + libpath};
             } else {
                 envp = envpOth;
             }
@@ -1965,7 +2012,7 @@ public class Basic {
             //----------------------------------------------------------------
             try {
                 new File("suBdiR").mkdirs();
-                copy("/bin/true", "suBdiR/unliKely");
+                copy(TrueExe.path(), "suBdiR/unliKely");
                 final ProcessBuilder pb =
                     new ProcessBuilder(new String[]{"unliKely"});
                 pb.environment().put("PATH", "suBdiR");
@@ -2088,7 +2135,7 @@ public class Basic {
 
         //----------------------------------------------------------------
         // Check that reads which are pending when Process.destroy is
-        // called, get EOF, not IOException("Stream closed").
+        // called, get EOF, or IOException("Stream closed").
         //----------------------------------------------------------------
         try {
             final int cases = 4;
@@ -2141,7 +2188,25 @@ public class Basic {
                                 case 2: r = s.read(bytes); break;
                                 default: throw new Error();
                             }
+                            if (r >= 0) {
+                                // The child sent unexpected output; print it to diagnose
+                                System.out.println("Unexpected child output:");
+                                if ((action & 0x2) == 0) {
+                                    System.out.write(r);    // Single character
+
+                                } else {
+                                    System.out.write(bytes, 0, r);
+                                }
+                                for (int c = s.read(); c >= 0; c = s.read())
+                                    System.out.write(c);
+                                System.out.println("\nEND Child output.");
+                            }
                             equal(-1, r);
+                        } catch (IOException ioe) {
+                            if (!ioe.getMessage().equals("Stream closed")) {
+                                // BufferedInputStream may throw IOE("Stream closed").
+                                unexpected(ioe);
+                            }
                         } catch (Throwable t) { unexpected(t); }}};
 
                 thread.start();

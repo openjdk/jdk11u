@@ -25,11 +25,11 @@
 /**
  * @test
  * @requires vm.cds
- * @library /test/jdk/lib/testlibrary /test/lib /test/hotspot/jtreg/runtime/appcds
+ * @library /test/lib /test/hotspot/jtreg/runtime/appcds
  * @modules jdk.compiler
  *          jdk.jartool/sun.tools.jar
  *          jdk.jlink
- * @run main ModulePathAndCP
+ * @run driver ModulePathAndCP
  * @summary 2 sets of tests: one with only --module-path in the command line;
  *          another with both -cp and --module-path in the command line.
  */
@@ -40,7 +40,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import jdk.test.lib.process.OutputAnalyzer;
-import jdk.testlibrary.ProcessTools;
 
 public class ModulePathAndCP {
 
@@ -94,6 +93,10 @@ public class ModulePathAndCP {
     }
 
     public static void main(String... args) throws Exception {
+        run();
+    }
+
+    public static void run(String... extra_runtime_args) throws Exception {
         // compile the modules and create the modular jar files
         buildTestModule();
         String appClasses[] = {MAIN_CLASS, APP_CLASS};
@@ -105,6 +108,7 @@ public class ModulePathAndCP {
                                         "-m", MAIN_MODULE);
         TestCommon.checkDump(output);
         String prefix[] = {"-cp", "\"\"", "-Xlog:class+load=trace"};
+        prefix = TestCommon.concat(prefix, extra_runtime_args);
 
         // run with the archive with the --module-path the same as the one during
         // dump time. The classes should be loaded from the archive.

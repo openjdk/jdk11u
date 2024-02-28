@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,7 +22,9 @@
  */
 
 import java.util.Arrays;
+
 import jdk.internal.platform.Metrics;
+import jdk.internal.platform.CgroupV1Metrics;
 
 public class MetricsMemoryTester {
 
@@ -36,9 +38,6 @@ public class MetricsMemoryTester {
                 break;
             case "memoryswap":
                 testMemoryAndSwapLimit(args[1], args[2]);
-                break;
-            case "kernelmem":
-                testKernelMemoryLimit(args[1]);
                 break;
             case "oomkill":
                 testOomKillFlag(Boolean.parseBoolean(args[2]));
@@ -73,11 +72,13 @@ public class MetricsMemoryTester {
         } else {
             long count = Metrics.systemMetrics().getMemoryFailCount();
 
-            // Allocate 512M of data
-            byte[][] bytes = new byte[64][];
-            for (int i = 0; i < 64; i++) {
+            // Allocate 512M of data in 1M chunks per iteration
+            byte[][] bytes = new byte[64 * 8][];
+            boolean atLeastOneAllocationWorked = false;
+            for (int i = 0; i < 64 * 8; i++) {
                 try {
-                    bytes[i] = new byte[8 * 1024 * 1024];
+                    bytes[i] = new byte[1024 * 1024];
+                    atLeastOneAllocationWorked = true;
                     // Break out as soon as we see an increase in failcount
                     // to avoid getting killed by the OOM killer.
                     if (Metrics.systemMetrics().getMemoryFailCount() > count) {
@@ -87,6 +88,12 @@ public class MetricsMemoryTester {
                     break;
                 }
             }
+            if (!atLeastOneAllocationWorked) {
+                System.out.println("Allocation failed immediately. Ignoring test!");
+                return;
+            }
+            // Be sure bytes allocations don't get optimized out
+            System.out.println("DEBUG: Bytes allocation length 1: " + bytes[0].length);
             if (Metrics.systemMetrics().getMemoryFailCount() <= count) {
                 throw new RuntimeException("Memory fail count : new : ["
                         + Metrics.systemMetrics().getMemoryFailCount() + "]"
@@ -105,20 +112,6 @@ public class MetricsMemoryTester {
             throw new RuntimeException("Memory softlimit not equal, Actual : ["
                     + newmemorySoftLimit + "]" + ", Expected : ["
                     + memorySoftLimit + "]");
-        }
-        System.out.println("TEST PASSED!!!");
-    }
-
-    private static void testKernelMemoryLimit(String value) {
-        long limit = getMemoryValue(value);
-        long kmemlimit = Metrics.systemMetrics().getKernelMemoryLimit();
-        // Note that the kernel memory limit might get ignored by OCI runtimes
-        // This feature is deprecated. Only perform the check if we get an actual
-        // limit back.
-        if (kmemlimit != UNLIMITED && limit != kmemlimit) {
-            throw new RuntimeException("Kernel Memory limit not equal, expected : ["
-                    + limit + "]" + ", got : ["
-                    + kmemlimit + "]");
         }
         System.out.println("TEST PASSED!!!");
     }
@@ -154,9 +147,17 @@ public class MetricsMemoryTester {
     }
 
     private static void testOomKillFlag(boolean oomKillFlag) {
-        if (!(oomKillFlag ^ Metrics.systemMetrics().isMemoryOOMKillEnabled())) {
-            throw new RuntimeException("oomKillFlag error");
+        Metrics m = Metrics.systemMetrics();
+        if (m instanceof CgroupV1Metrics) {
+            CgroupV1Metrics mCgroupV1 = (CgroupV1Metrics)m;
+            Boolean expected = Boolean.valueOf(oomKillFlag);
+            Boolean actual = mCgroupV1.isMemoryOOMKillEnabled();
+            if (!(expected.equals(actual))) {
+                throw new RuntimeException("oomKillFlag error");
+            }
+            System.out.println("TEST PASSED!!!");
+        } else {
+            throw new RuntimeException("oomKillFlag test not supported for cgroups v2");
         }
-        System.out.println("TEST PASSED!!!");
     }
 }

@@ -214,7 +214,7 @@ public:
 
   static void patch(address a, int msb, int lsb, uint64_t val) {
     int nbits = msb - lsb + 1;
-    guarantee(val < (1U << nbits), "Field too big for insn");
+    guarantee(val < (1ULL << nbits), "Field too big for insn");
     assert_cond(msb >= lsb);
     unsigned mask = checked_cast<unsigned>(right_n_bits(nbits));
     val <<= lsb;
@@ -436,8 +436,8 @@ class Address {
   }
 
   Register base() const {
-    guarantee((_mode == base_plus_offset | _mode == base_plus_offset_reg
-               | _mode == post | _mode == post_reg),
+    guarantee((_mode == base_plus_offset || _mode == base_plus_offset_reg
+               || _mode == post || _mode == post_reg),
               "wrong mode");
     return _base;
   }
@@ -2285,6 +2285,8 @@ public:
   INSN(ushl,   1, 0b010001, true);  // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S, T2D
   INSN(umullv, 1, 0b110000, false); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S
   INSN(umlalv, 1, 0b100000, false); // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S
+
+  INSN(cmhi,   1, 0b001101, true);  // accepted arrangements: T8B, T16B, T4H, T8H, T2S, T4S, T2D
 
 #undef INSN
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,7 +37,9 @@ import jdk.jfr.events.ExceptionThrownEvent;
 import jdk.jfr.events.FileForceEvent;
 import jdk.jfr.events.FileReadEvent;
 import jdk.jfr.events.FileWriteEvent;
+import jdk.jfr.events.DeserializationEvent;
 import jdk.jfr.events.SecurityPropertyModificationEvent;
+import jdk.jfr.events.SecurityProviderServiceEvent;
 import jdk.jfr.events.SocketReadEvent;
 import jdk.jfr.events.SocketWriteEvent;
 import jdk.jfr.events.TLSHandshakeEvent;
@@ -54,7 +56,9 @@ import jdk.jfr.internal.Utils;
 public final class JDKEvents {
 
     private static final Class<?>[] mirrorEventClasses = {
+        DeserializationEvent.class,
         SecurityPropertyModificationEvent.class,
+        SecurityProviderServiceEvent.class,
         TLSHandshakeEvent.class,
         X509CertificateEvent.class,
         X509ValidationEvent.class
@@ -71,7 +75,9 @@ public final class JDKEvents {
         ErrorThrownEvent.class,
         ActiveSettingEvent.class,
         ActiveRecordingEvent.class,
+        jdk.internal.event.DeserializationEvent.class,
         jdk.internal.event.SecurityPropertyModificationEvent.class,
+        jdk.internal.event.SecurityProviderServiceEvent.class,
         jdk.internal.event.TLSHandshakeEvent.class,
         jdk.internal.event.X509CertificateEvent.class,
         jdk.internal.event.X509ValidationEvent.class

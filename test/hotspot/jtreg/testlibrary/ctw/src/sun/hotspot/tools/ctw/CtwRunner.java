@@ -174,9 +174,7 @@ public class CtwRunner {
         while (!done) {
             String[] cmd = cmd(classStart, classStop);
             try {
-                ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
-                        /* addTestVmAndJavaOptions = */ true,
-                        cmd);
+                ProcessBuilder pb = ProcessTools.createTestJvm(cmd);
                 String commandLine = pb.command()
                         .stream()
                         .collect(Collectors.joining(" "));
@@ -274,6 +272,7 @@ public class CtwRunner {
                 "--add-exports", "java.base/jdk.internal.jimage=ALL-UNNAMED",
                 "--add-exports", "java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--add-exports", "java.base/jdk.internal.reflect=ALL-UNNAMED",
+                "--add-exports", "java.base/jdk.internal.access=ALL-UNNAMED",
                 // enable diagnostic logging
                 "-XX:+LogCompilation",
                 // use phase specific log, hs_err and ciReplay files

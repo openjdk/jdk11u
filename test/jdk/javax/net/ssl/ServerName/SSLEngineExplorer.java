@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -28,7 +28,7 @@
 
 /*
  * @test
- * @bug 7068321
+ * @bug 7068321 8190492
  * @summary Support TLS Server Name Indication (SNI) Extension in JSSE Server
  * @library ../SSLEngine ../templates
  * @build SSLEngineService SSLCapabilities SSLExplorer
@@ -79,6 +79,9 @@ public class SSLEngineExplorer extends SSLEngineService {
 
         // create SSLEngine.
         SSLEngine ssle = createSSLEngine(false);
+
+        // Enable all supported protocols on server side to test SSLv3
+        ssle.setEnabledProtocols(ssle.getSupportedProtocols());
 
         // Create a server socket channel.
         InetSocketAddress isa =
@@ -142,10 +145,10 @@ public class SSLEngineExplorer extends SSLEngineService {
         }
 
         // handshaking
-        handshaking(ssle, sc, buffer);
+        ByteBuffer peerNetData = handshaking(ssle, sc, buffer);
 
         // receive application data
-        receive(ssle, sc);
+        receive(ssle, sc, peerNetData);
 
         // send out application data
         deliver(ssle, sc);
@@ -192,13 +195,13 @@ public class SSLEngineExplorer extends SSLEngineService {
         ssle.setEnabledProtocols(supportedProtocols);
 
         // handshaking
-        handshaking(ssle, sc, null);
+        ByteBuffer peerNetData = handshaking(ssle, sc, null);
 
         // send out application data
         deliver(ssle, sc);
 
         // receive application data
-        receive(ssle, sc);
+        receive(ssle, sc, peerNetData);
 
         // close the socket channel.
         sc.close();

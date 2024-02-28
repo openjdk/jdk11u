@@ -114,10 +114,6 @@ public class TestCommon extends CDSTestUtils {
         return createArchive(opts);
     }
 
-    public static String[] makeCommandLineForAppCDS(String... args) throws Exception {
-        return args;
-    }
-
     // Create AppCDS archive using appcds options
     public static OutputAnalyzer createArchive(AppCDSOptions opts)
         throws Exception {
@@ -137,7 +133,6 @@ public class TestCommon extends CDSTestUtils {
         }
 
         cmd.add("-Xshare:dump");
-        cmd.add("-Xlog:cds,cds+hashtables");
         cmd.add("-XX:ExtraSharedClassListFile=" + classList.getPath());
 
         if (opts.archiveName == null)
@@ -147,11 +142,19 @@ public class TestCommon extends CDSTestUtils {
 
         for (String s : opts.suffix) cmd.add(s);
 
-        String[] cmdLine = cmd.toArray(new String[cmd.size()]);
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, makeCommandLineForAppCDS(cmdLine));
+        ProcessBuilder pb = ProcessTools.createTestJvm(cmd);
         return executeAndLog(pb, "dump");
     }
 
+    // This allows you to run the AppCDS tests with JFR enabled at runtime (though not at
+    // dump time, as that's uncommon for typical AppCDS users).
+    //
+    // To run in this special mode, add the following to your jtreg command-line
+    //    -Dtest.cds.run.with.jfr=true
+    //
+    // Some AppCDS tests are not compatible with this mode. See the group
+    // hotspot_appcds_with_jfr in ../../TEST.ROOT for details.
+    private static final boolean RUN_WITH_JFR = Boolean.getBoolean("test.cds.run.with.jfr");
 
     // Execute JVM using AppCDS archive with specified AppCDSOptions
     public static OutputAnalyzer runWithArchive(AppCDSOptions opts)
@@ -173,8 +176,23 @@ public class TestCommon extends CDSTestUtils {
 
         for (String s : opts.suffix) cmd.add(s);
 
-        String[] cmdLine = cmd.toArray(new String[cmd.size()]);
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, makeCommandLineForAppCDS(cmdLine));
+        if (RUN_WITH_JFR) {
+            boolean usesJFR = false;
+            for (String s : cmd) {
+                if (s.startsWith("-XX:StartFlightRecording=") || s.startsWith("-XX:FlightRecorderOptions")) {
+                    System.out.println("JFR option might have been specified. Don't interfere: " + s);
+                    usesJFR = true;
+                    break;
+                }
+            }
+            if (!usesJFR) {
+                System.out.println("JFR option not specified. Enabling JFR ...");
+                cmd.add(0, "-XX:StartFlightRecording=dumponexit=true");
+                System.out.println(cmd);
+            }
+        }
+
+        ProcessBuilder pb = ProcessTools.createTestJvm(cmd);
         return executeAndLog(pb, "exec");
     }
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2011, 2021, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # This code is free software; you can redistribute it and/or modify it
@@ -129,7 +129,7 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_OPEN_OR_CUSTOM],
 
   # custom-make-dir is deprecated. Please use your custom-hook.m4 to override
   # the IncludeCustomExtension macro.
-  BASIC_DEPRECATED_ARG_WITH(custom-make-dir)
+  UTIL_DEPRECATED_ARG_WITH(custom-make-dir)
 ])
 
 AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_OPTIONS],
@@ -346,12 +346,12 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_DEBUG_SYMBOLS],
 
   # --enable-debug-symbols is deprecated.
   # Please use --with-native-debug-symbols=[internal,external,zipped] .
-  BASIC_DEPRECATED_ARG_ENABLE(debug-symbols, debug_symbols,
+  UTIL_DEPRECATED_ARG_ENABLE(debug-symbols, debug_symbols,
         [Please use --with-native-debug-symbols=[[internal,external,zipped]] .])
 
   # --enable-zip-debug-info is deprecated.
   # Please use --with-native-debug-symbols=zipped .
-  BASIC_DEPRECATED_ARG_ENABLE(zip-debug-info, zip_debug_info,
+  UTIL_DEPRECATED_ARG_ENABLE(zip-debug-info, zip_debug_info,
                               [Please use --with-native-debug-symbols=zipped .])
 
   AC_SUBST(COMPILE_WITH_DEBUG_SYMBOLS)
@@ -682,4 +682,179 @@ AC_DEFUN([JDKOPT_ALLOW_ABSOLUTE_PATHS_IN_OUTPUT],
   fi
 
   AC_SUBST(ALLOW_ABSOLUTE_PATHS_IN_OUTPUT)
+])
+
+################################################################################
+#
+# Check and set options related to reproducible builds.
+#
+AC_DEFUN_ONCE([JDKOPT_SETUP_REPRODUCIBLE_BUILD],
+[
+  AC_ARG_WITH([source-date], [AS_HELP_STRING([--with-source-date],
+      [how to set SOURCE_DATE_EPOCH ('updated', 'current', 'version' a timestamp or an ISO-8601 date) @<:@updated@:>@])],
+      [with_source_date_present=true], [with_source_date_present=false])
+
+  AC_MSG_CHECKING([what source date to use])
+
+  if test "x$with_source_date" = xyes; then
+    AC_MSG_ERROR([--with-source-date must have a value])
+  elif test "x$with_source_date" = xupdated || test "x$with_source_date" = x; then
+    # Tell the makefiles to update at each build
+    SOURCE_DATE=updated
+    AC_MSG_RESULT([determined at build time, from 'updated'])
+  elif test "x$with_source_date" = xcurrent; then
+    # Set the current time
+    SOURCE_DATE=$($DATE +"%s")
+    AC_MSG_RESULT([$SOURCE_DATE, from 'current'])
+  elif test "x$with_source_date" = xversion; then
+    # Use the date from version-numbers
+    UTIL_GET_EPOCH_TIMESTAMP(SOURCE_DATE, $DEFAULT_VERSION_DATE)
+    if test "x$SOURCE_DATE" = x; then
+      AC_MSG_RESULT([unavailable])
+      AC_MSG_ERROR([Cannot convert DEFAULT_VERSION_DATE to timestamp])
+    fi
+    AC_MSG_RESULT([$SOURCE_DATE, from 'version'])
+  else
+    # It's a timestamp, an ISO-8601 date, or an invalid string
+    # Additional [] needed to keep m4 from mangling shell constructs.
+    if [ [[ "$with_source_date" =~ ^[0-9][0-9]*$ ]] ] ; then
+      SOURCE_DATE=$with_source_date
+      AC_MSG_RESULT([$SOURCE_DATE, from timestamp on command line])
+    else
+      UTIL_GET_EPOCH_TIMESTAMP(SOURCE_DATE, $with_source_date)
+      if test "x$SOURCE_DATE" != x; then
+        AC_MSG_RESULT([$SOURCE_DATE, from ISO-8601 date on command line])
+      else
+        AC_MSG_RESULT([unavailable])
+        AC_MSG_ERROR([Cannot parse date string "$with_source_date"])
+      fi
+    fi
+  fi
+
+  REPRODUCIBLE_BUILD_DEFAULT=$with_source_date_present
+
+  if test "x$OPENJDK_BUILD_OS" = xwindows && \
+      test "x$ALLOW_ABSOLUTE_PATHS_IN_OUTPUT" = xfalse; then
+    # To support banning absolute paths on Windows, we must use the -pathmap
+    # method, which requires reproducible builds.
+    REPRODUCIBLE_BUILD_DEFAULT=true
+  fi
+
+  UTIL_ARG_ENABLE(NAME: reproducible-build, DEFAULT: $REPRODUCIBLE_BUILD_DEFAULT,
+      RESULT: ENABLE_REPRODUCIBLE_BUILD,
+      DESC: [enable reproducible builds (not yet fully functional)],
+      DEFAULT_DESC: [enabled if --with-source-date is given or on Windows without absolute paths])
+
+  if test "x$OPENJDK_BUILD_OS" = xwindows && \
+      test "x$ALLOW_ABSOLUTE_PATHS_IN_OUTPUT" = xfalse && \
+      test "x$ENABLE_REPRODUCIBLE_BUILD" = xfalse; then
+    AC_MSG_NOTICE([On Windows it is not possible to combine  --disable-reproducible-builds])
+    AC_MSG_NOTICE([with --disable-absolute-paths-in-output.])
+    AC_MSG_ERROR([Cannot continue])
+  fi
+
+  AC_SUBST(SOURCE_DATE)
+  AC_SUBST(ENABLE_REPRODUCIBLE_BUILD)
+])
+
+################################################################################
+#
+# Setup signing on macOS. This can either be setup to sign with a real identity
+# and enabling the hardened runtime, or it can simply add the debug entitlement
+# com.apple.security.get-task-allow without actually signing any binaries. The
+# latter is needed to be able to debug processes and dump core files on modern
+# versions of macOS. It can also be skipped completely.
+#
+# Check if codesign will run with the given parameters
+# $1: Parameters to run with
+# $2: Checking message
+# Sets CODESIGN_SUCCESS=true/false
+AC_DEFUN([JDKOPT_CHECK_CODESIGN_PARAMS],
+[
+  PARAMS="$1"
+  MESSAGE="$2"
+  CODESIGN_TESTFILE="$CONFIGURESUPPORT_OUTPUTDIR/codesign-testfile"
+  $RM "$CODESIGN_TESTFILE"
+  $TOUCH "$CODESIGN_TESTFILE"
+  CODESIGN_SUCCESS=false
+  eval \"$CODESIGN\" $PARAMS \"$CODESIGN_TESTFILE\" 2>&AS_MESSAGE_LOG_FD \
+      >&AS_MESSAGE_LOG_FD && CODESIGN_SUCCESS=true
+  $RM "$CODESIGN_TESTFILE"
+  AC_MSG_CHECKING([$MESSAGE])
+  if test "x$CODESIGN_SUCCESS" = "xtrue"; then
+    AC_MSG_RESULT([yes])
+  else
+    AC_MSG_RESULT([no])
+  fi
+])
+
+AC_DEFUN([JDKOPT_CHECK_CODESIGN_HARDENED],
+[
+  JDKOPT_CHECK_CODESIGN_PARAMS([-s \"$MACOSX_CODESIGN_IDENTITY\" --option runtime],
+      [if codesign with hardened runtime is possible])
+])
+
+AC_DEFUN([JDKOPT_CHECK_CODESIGN_DEBUG],
+[
+  JDKOPT_CHECK_CODESIGN_PARAMS([-s -], [if debug mode codesign is possible])
+])
+
+AC_DEFUN([JDKOPT_SETUP_MACOSX_SIGNING],
+[
+  ENABLE_CODESIGN=false
+  if test "x$OPENJDK_TARGET_OS" = "xmacosx" && test "x$CODESIGN" != "x"; then
+
+    UTIL_ARG_WITH(NAME: macosx-codesign, TYPE: literal, OPTIONAL: true,
+        VALID_VALUES: [hardened debug auto], DEFAULT: auto,
+        ENABLED_DEFAULT: true,
+        CHECKING_MSG: [for macosx code signing mode],
+        DESC: [set the macosx code signing mode (hardened, debug, auto)]
+    )
+
+    MACOSX_CODESIGN_MODE=disabled
+    if test "x$MACOSX_CODESIGN_ENABLED" = "xtrue"; then
+
+      # Check for user provided code signing identity.
+      UTIL_ARG_WITH(NAME: macosx-codesign-identity, TYPE: string,
+          DEFAULT: openjdk_codesign, CHECK_VALUE: UTIL_CHECK_STRING_NON_EMPTY,
+          DESC: [specify the macosx code signing identity],
+          CHECKING_MSG: [for macosx code signing identity]
+      )
+      AC_SUBST(MACOSX_CODESIGN_IDENTITY)
+
+      if test "x$MACOSX_CODESIGN" = "xauto"; then
+        # Only try to default to hardened signing on release builds
+        if test "x$DEBUG_LEVEL" = "xrelease"; then
+          JDKOPT_CHECK_CODESIGN_HARDENED
+          if test "x$CODESIGN_SUCCESS" = "xtrue"; then
+            MACOSX_CODESIGN_MODE=hardened
+          fi
+        fi
+        if test "x$MACOSX_CODESIGN_MODE" = "xdisabled"; then
+          JDKOPT_CHECK_CODESIGN_DEBUG
+          if test "x$CODESIGN_SUCCESS" = "xtrue"; then
+            MACOSX_CODESIGN_MODE=debug
+          fi
+        fi
+        AC_MSG_CHECKING([for macosx code signing mode])
+        AC_MSG_RESULT([$MACOSX_CODESIGN_MODE])
+      elif test "x$MACOSX_CODESIGN" = "xhardened"; then
+        JDKOPT_CHECK_CODESIGN_HARDENED
+        if test "x$CODESIGN_SUCCESS" = "xfalse"; then
+          AC_MSG_ERROR([Signing with hardened runtime is not possible])
+        fi
+        MACOSX_CODESIGN_MODE=hardened
+      elif test "x$MACOSX_CODESIGN" = "xdebug"; then
+        JDKOPT_CHECK_CODESIGN_DEBUG
+        if test "x$CODESIGN_SUCCESS" = "xfalse"; then
+          AC_MSG_ERROR([Signing in debug mode is not possible])
+        fi
+        MACOSX_CODESIGN_MODE=debug
+      else
+        AC_MSG_ERROR([unknown value for --with-macosx-codesign: $MACOSX_CODESIGN])
+      fi
+    fi
+    AC_SUBST(MACOSX_CODESIGN_IDENTITY)
+    AC_SUBST(MACOSX_CODESIGN_MODE)
+  fi
 ])

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,6 +23,7 @@
 
 /*
  * @test
+ * @key cgroups
  * @requires os.family == "linux"
  * @modules java.base/jdk.internal.platform
  * @library /test/lib
@@ -35,23 +36,7 @@ import jdk.internal.platform.Metrics;
 public class TestCgroupMetrics {
 
     public static void main(String[] args) throws Exception {
-        // If cgroups is not configured, report success.
-        Metrics metrics = Metrics.systemMetrics();
-        if (metrics == null) {
-            System.out.println("TEST PASSED!!!");
-            return;
-        }
-
-        MetricsTester metricsTester = new MetricsTester();
-        metricsTester.setup();
-        metricsTester.testCpuAccounting();
-        metricsTester.testCpuSchedulingMetrics();
-        metricsTester.testCpuSets();
-        metricsTester.testMemorySubsystem();
-        metricsTester.testBlkIO();
-        metricsTester.testCpuConsumption();
-        metricsTester.testMemoryUsage();
-        System.out.println("TEST PASSED!!!");
+        MetricsTester.main(args);
     }
 
 }

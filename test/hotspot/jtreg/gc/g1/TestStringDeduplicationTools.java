@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,13 +21,13 @@
  * questions.
  */
 
+package gc.g1;
+
 /*
  * Common code for string deduplication tests
  */
 
-import java.lang.management.*;
 import java.lang.reflect.*;
-import java.security.*;
 import java.util.*;
 import jdk.test.lib.process.ProcessTools;
 import jdk.test.lib.process.OutputAnalyzer;
@@ -198,7 +198,7 @@ class TestStringDeduplicationTools {
         args.addAll(Arrays.asList(defaultArgs));
         args.addAll(Arrays.asList(extraArgs));
 
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args.toArray(new String[args.size()]));
+        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
         OutputAnalyzer output = new OutputAnalyzer(pb.start());
         System.err.println(output.getStderr());
         System.out.println(output.getStdout());
@@ -377,6 +377,23 @@ class TestStringDeduplicationTools {
         output.shouldContain("Concurrent String Deduplication");
         output.shouldContain("Deduplicated:");
         output.shouldNotContain("Rehash Count: 0");
+        output.shouldNotContain("Hash Seed: 0x0");
+        output.shouldHaveExitValue(0);
+    }
+
+    public static void testTableRehashFullGC() throws Exception {
+        // Test with StringDeduplicationRehashALot using full GCs
+        // Table resizing prevents table rehashing from happening, thus we use
+        // SmallNumberOfStrings to limit the number of table resizes.
+        OutputAnalyzer output = DeduplicationTest.run(SmallNumberOfStrings,
+                                                      DefaultAgeThreshold,
+                                                      FullGC,
+                                                      "-Xlog:gc,gc+stringdedup=trace",
+                                                      "-XX:+StringDeduplicationRehashALot");
+        output.shouldContain("Concurrent String Deduplication");
+        output.shouldContain("Deduplicated:");
+        output.shouldContain("Full GC");
+        output.shouldMatch("Rehash Count: [1-9]");
         output.shouldNotContain("Hash Seed: 0x0");
         output.shouldHaveExitValue(0);
     }

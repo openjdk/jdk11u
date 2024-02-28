@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,144 +23,208 @@
 
 /* @test
  * @bug 4313882 7183800
+ * @run main/othervm Connect
  * @summary Test DatagramChannel's send and receive methods
- * @author Mike McCloskey
  */
 
 import java.io.*;
 import java.net.*;
 import java.nio.*;
 import java.nio.channels.*;
-import java.nio.charset.*;
+import java.time.Instant;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.stream.Stream;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 public class Connect {
 
-    static PrintStream log = System.err;
+    static final PrintStream err = System.err;
+    static final String TIME_STAMP = Instant.now().toString();
+    static final String MESSAGE = "Hello " + TIME_STAMP;
+    static final String OTHER = "Hey " + TIME_STAMP;
+    static final String RESPONSE = "Hi " + TIME_STAMP;
+    static final int MAX = Math.max(256, MESSAGE.getBytes(US_ASCII).length + 16);
 
     public static void main(String[] args) throws Exception {
+        assert MAX > MESSAGE.getBytes(US_ASCII).length;
+        assert MAX > OTHER.getBytes(US_ASCII).length;
+        assert MAX > RESPONSE.getBytes(US_ASCII).length;
         test();
     }
 
     static void test() throws Exception {
-        Reactor r = new Reactor();
-        Actor a = new Actor(r.port());
-        invoke(a, r);
-    }
-
-    static void invoke(Sprintable reader, Sprintable writer) throws Exception {
-
-        Thread writerThread = new Thread(writer);
-        writerThread.start();
-
-        Thread readerThread = new Thread(reader);
-        readerThread.start();
-
-        writerThread.join();
-        readerThread.join();
-
-        reader.throwException();
-        writer.throwException();
-    }
-
-    public interface Sprintable extends Runnable {
-        public void throwException() throws Exception;
-    }
-
-    public static class Actor implements Sprintable {
-        final int port;
-        Exception e = null;
-
-        Actor(int port) {
-            this.port = port;
+        ExecutorService threadPool = Executors.newCachedThreadPool();
+        try (Responder r = new Responder();
+             Initiator a = new Initiator(r.getSocketAddress())
+        ) {
+            invoke(threadPool, a, r);
+        } finally {
+            threadPool.shutdown();
         }
+    }
 
-        public void throwException() throws Exception {
-            if (e != null)
-                throw e;
+    static void invoke(ExecutorService e, Runnable reader, Runnable writer) throws CompletionException {
+        CompletableFuture<Void> f1 = CompletableFuture.runAsync(writer, e);
+        CompletableFuture<Void> f2 = CompletableFuture.runAsync(reader, e);
+        wait(f1, f2);
+    }
+
+
+    // This method waits for either one of the given futures to complete exceptionally
+    // or for all of the given futures to complete successfully.
+    private static void wait(CompletableFuture<?>... futures) throws CompletionException {
+        CompletableFuture<?> future = CompletableFuture.allOf(futures);
+        Stream.of(futures)
+                .forEach(f -> f.exceptionally(ex -> {
+                    future.completeExceptionally(ex);
+                    return null;
+                }));
+        future.join();
+    }
+
+    private static SocketAddress toConnectAddress(SocketAddress address) {
+        if (address instanceof InetSocketAddress) {
+            var inet = (InetSocketAddress) address;
+            if (inet.getAddress().isAnyLocalAddress()) {
+                // if the peer is bound to the wildcard address, use
+                // the loopback address to connect.
+                var loopback = InetAddress.getLoopbackAddress();
+                return new InetSocketAddress(loopback, inet.getPort());
+            }
+        }
+        return address;
+    }
+
+    public static class Initiator implements AutoCloseable, Runnable {
+        final SocketAddress connectSocketAddress;
+        final DatagramChannel dc;
+
+        Initiator(SocketAddress peerSocketAddress) throws IOException {
+            this.connectSocketAddress = toConnectAddress(peerSocketAddress);
+            dc = DatagramChannel.open();
         }
 
         public void run() {
             try {
-                DatagramChannel dc = DatagramChannel.open();
+                byte[] bytes = MESSAGE.getBytes(US_ASCII);
+                ByteBuffer bb = ByteBuffer.allocateDirect(MAX);
+                bb.put(bytes);
+                bb.flip();
+                err.println("Initiator connecting to: " + connectSocketAddress);
+                dc.connect(connectSocketAddress);
+                err.println("Initiator bound to: " + dc.getLocalAddress());
 
                 // Send a message
-                ByteBuffer bb = ByteBuffer.allocateDirect(256);
-                bb.put("hello".getBytes());
-                bb.flip();
-                InetAddress address = InetAddress.getLocalHost();
-                if (address.isLoopbackAddress()) {
-                    address = InetAddress.getLoopbackAddress();
-                }
-                InetSocketAddress isa = new InetSocketAddress(address, port);
-                dc.connect(isa);
+                err.println("Initiator attempting to write to Responder at " + connectSocketAddress);
                 dc.write(bb);
 
                 // Try to send to some other address
-                address = InetAddress.getLocalHost();
-                InetSocketAddress bogus = new InetSocketAddress(address, 3333);
                 try {
-                    dc.send(bb, bogus);
-                    throw new RuntimeException("Allowed bogus send while connected");
+                    int port = dc.socket().getLocalPort();
+                    InetAddress loopback = InetAddress.getLoopbackAddress();
+                    try (DatagramChannel other = DatagramChannel.open()) {
+                        InetSocketAddress otherAddress = new InetSocketAddress(loopback, 0);
+                        other.bind(otherAddress);
+                        err.println("Testing if Initiator throws AlreadyConnectedException");
+                        otherAddress = (InetSocketAddress) other.getLocalAddress();
+                        assert port != otherAddress.getPort();
+                        assert !connectSocketAddress.equals(otherAddress);
+                        err.printf("Initiator sending \"%s\" to other address %s%n", OTHER, otherAddress);
+                        dc.send(ByteBuffer.wrap(OTHER.getBytes(US_ASCII)), otherAddress);
+                    }
+                    throw new RuntimeException("Initiator allowed send to other address while already connected");
                 } catch (AlreadyConnectedException ace) {
                     // Correct behavior
+                    err.println("Initiator got expected " + ace);
                 }
 
-                // Read a reply
-                bb.flip();
-                dc.read(bb);
-                bb.flip();
-                CharBuffer cb = Charset.forName("US-ASCII").
-                newDecoder().decode(bb);
-                log.println("From Reactor: "+isa+ " said " +cb);
+                // wait for response
+                while (true) {
+                    // zero out buffer
+                    bb.clear();
+                    bb.put(new byte[bb.remaining()]);
+                    bb.flip();
 
-                // Clean up
-                dc.disconnect();
-                dc.close();
+                    // Read a reply
+                    err.println("Initiator waiting to read");
+                    dc.read(bb);
+                    bb.flip();
+                    CharBuffer cb = US_ASCII.newDecoder().decode(bb);
+                    err.println("Initiator received from Responder at " + connectSocketAddress + ": " + cb);
+                    if (!RESPONSE.equals(cb.toString())) {
+                        err.println("Initiator received unexpected message: continue waiting");
+                        continue;
+                    }
+                    break;
+                }
             } catch (Exception ex) {
-                e = ex;
+                err.println("Initiator threw exception: " + ex);
+                throw new RuntimeException(ex);
+            } finally {
+                err.println("Initiator finished");
             }
+        }
+
+        @Override
+        public void close() throws IOException {
+            dc.close();
         }
     }
 
-    public static class Reactor implements Sprintable {
+    public static class Responder implements AutoCloseable, Runnable {
         final DatagramChannel dc;
-        Exception e = null;
 
-        Reactor() throws IOException {
-            dc = DatagramChannel.open().bind(new InetSocketAddress(0));
+        Responder() throws IOException {
+            var address = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+            dc = DatagramChannel.open().bind(address);
         }
 
-        int port() {
-            return dc.socket().getLocalPort();
-        }
-
-        public void throwException() throws Exception {
-            if (e != null)
-                throw e;
+        SocketAddress getSocketAddress() throws IOException {
+            return dc.getLocalAddress();
         }
 
         public void run() {
+            ByteBuffer bb = ByteBuffer.allocateDirect(MAX);
             try {
-                // Listen for a message
-                ByteBuffer bb = ByteBuffer.allocateDirect(100);
-                SocketAddress sa = dc.receive(bb);
-                bb.flip();
-                CharBuffer cb = Charset.forName("US-ASCII").
-                newDecoder().decode(bb);
-                log.println("From Actor: "+sa+ " said " +cb);
+                while (true) {
+                    // Listen for a message
+                    err.println("Responder waiting to receive");
+                    SocketAddress sa = dc.receive(bb);
+                    bb.flip();
+                    CharBuffer cb = US_ASCII.
+                            newDecoder().decode(bb);
+                    err.println("Responder received from Initiator at " + sa + ": " + cb);
+                    if (!MESSAGE.equals(cb.toString())) {
+                        err.println("Responder received unexpected message: continue waiting");
+                        bb.clear();
+                        continue;
+                    }
 
-                // Reply to sender
-                dc.connect(sa);
-                bb.flip();
-                dc.write(bb);
-
-                // Clean up
-                dc.disconnect();
-                dc.close();
+                    // Reply to sender
+                    dc.connect(sa);
+                    bb.clear();
+                    bb.put(RESPONSE.getBytes(US_ASCII));
+                    bb.flip();
+                    err.println("Responder attempting to write: " + dc.getRemoteAddress());
+                    dc.write(bb);
+                    bb.flip();
+                    break;
+                }
             } catch (Exception ex) {
-                e = ex;
+                err.println("Responder threw exception: " + ex);
+                throw new RuntimeException(ex);
+            } finally {
+                err.println("Responder finished");
             }
+        }
+
+        @Override
+        public void close() throws IOException {
+            dc.close();
         }
     }
 }
