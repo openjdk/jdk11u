@@ -117,7 +117,7 @@ final class EntrustTLSPolicy {
     }
 
     private static String fingerprint(X509Certificate cert) {
-        return X509CertImpl.getFingerprint("SHA-256", cert, debug);
+        return X509CertImpl.getFingerprint("SHA-256", cert);
     }
 
     private static void checkNotBefore(LocalDate notBeforeDate,
