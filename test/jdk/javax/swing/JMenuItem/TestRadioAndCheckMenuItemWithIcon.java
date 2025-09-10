@@ -55,7 +55,7 @@ import javax.swing.UIManager;
 
 public class TestRadioAndCheckMenuItemWithIcon {
 
-    private static final String INSTRUCTIONS = 
+    private static final String INSTRUCTIONS =
          "A top level Menu will be shown.\n"
          + "\n"
          + "Clicking on the Menu will show a\n"
