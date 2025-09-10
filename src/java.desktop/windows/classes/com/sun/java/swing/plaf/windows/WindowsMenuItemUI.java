@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,30 +25,51 @@
 
 package com.sun.java.swing.plaf.windows;
 
-import java.awt.*;
-import javax.swing.*;
-import javax.swing.plaf.*;
-import javax.swing.plaf.basic.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Enumeration;
 
+import javax.swing.AbstractButton;
+import javax.swing.ButtonGroup;
+import javax.swing.ButtonModel;
+import javax.swing.DefaultButtonModel;
+import javax.swing.Icon;
+import javax.swing.JComponent;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.UIManager;
+import javax.swing.plaf.ComponentUI;
+import javax.swing.plaf.UIResource;
+import javax.swing.plaf.basic.BasicMenuItemUI;
+
+import com.sun.java.swing.SwingUtilities3;
+import com.sun.java.swing.plaf.windows.TMSchema.Part;
+import com.sun.java.swing.plaf.windows.TMSchema.State;
+import com.sun.java.swing.plaf.windows.XPStyle.Skin;
+import sun.swing.MenuItemCheckIconFactory;
+import sun.swing.MenuItemLayoutHelper;
 import sun.swing.SwingUtilities2;
-
-import com.sun.java.swing.plaf.windows.TMSchema.*;
-import com.sun.java.swing.plaf.windows.XPStyle.*;
 
 /**
  * Windows rendition of the component.
- * <p>
- * <strong>Warning:</strong>
- * Serialized objects of this class will not be compatible with
- * future Swing releases.  The current serialization support is appropriate
- * for short term storage or RMI between applications running the same
- * version of Swing.  A future release of Swing will provide support for
- * long term persistence.
  *
  * @author Igor Kushnirskiy
  */
-
 public class WindowsMenuItemUI extends BasicMenuItemUI {
+    /**
+     * The instance of {@code PropertyChangeListener}.
+     */
+    private PropertyChangeListener changeListener;
+    private static Color disabledForeground;
+    private static Color acceleratorSelectionForeground;
+    private static Color acceleratorForeground;
+
     final WindowsMenuItemUIAccessor accessor =
         new  WindowsMenuItemUIAccessor() {
 
@@ -66,6 +87,189 @@ public class WindowsMenuItemUI extends BasicMenuItemUI {
     };
     public static ComponentUI createUI(JComponent c) {
         return new WindowsMenuItemUI();
+    }
+
+    private void updateCheckIcon() {
+        String prefix = getPropertyPrefix();
+
+        if (checkIcon == null ||
+                checkIcon instanceof UIResource) {
+            checkIcon = UIManager.getIcon(prefix + ".checkIcon");
+            //In case of column layout, .checkIconFactory is defined for this UI,
+            //the icon is compatible with it and useCheckAndArrow() is true,
+            //then the icon is handled by the checkIcon.
+            boolean isColumnLayout = MenuItemLayoutHelper.isColumnLayout(
+                    menuItem.getComponentOrientation().isLeftToRight(), menuItem);
+            if (isColumnLayout) {
+                MenuItemCheckIconFactory iconFactory =
+                        (MenuItemCheckIconFactory) UIManager.get(prefix
+                                + ".checkIconFactory");
+                if (iconFactory != null
+                        && MenuItemLayoutHelper.useCheckAndArrow(menuItem)
+                        && iconFactory.isCompatible(checkIcon, prefix)) {
+                    checkIcon = iconFactory.getIcon(menuItem);
+                }
+            }
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void installListeners() {
+        super.installListeners();
+        changeListener = new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent e) {
+                String name = e.getPropertyName();
+                if (name == "horizontalTextPosition") {
+                    updateCheckIcon();
+                }
+            }
+        };
+        menuItem.addPropertyChangeListener(changeListener);
+    }
+
+    protected void installDefaults() {
+        super.installDefaults();
+        String prefix = getPropertyPrefix();
+
+        if (acceleratorSelectionForeground == null ||
+                acceleratorSelectionForeground instanceof UIResource) {
+            acceleratorSelectionForeground =
+                    UIManager.getColor(prefix + ".acceleratorSelectionForeground");
+        }
+        if (acceleratorForeground == null ||
+                acceleratorForeground instanceof UIResource) {
+            acceleratorForeground =
+                    UIManager.getColor(prefix + ".acceleratorForeground");
+        }
+        if (disabledForeground == null ||
+                disabledForeground instanceof UIResource) {
+            disabledForeground =
+                    UIManager.getColor(prefix + ".disabledForeground");
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void uninstallListeners() {
+        super.uninstallListeners();
+        if (changeListener != null) {
+            menuItem.removePropertyChangeListener(changeListener);
+        }
+        changeListener = null;
+    }
+
+    private static void applyInsets(Rectangle rect, Insets insets) {
+        SwingUtilities3.applyInsets(rect, insets);
+    }
+
+    private static void paintCheckIcon(Graphics g, MenuItemLayoutHelper lh,
+                                MenuItemLayoutHelper.LayoutResult lr,
+                                Color holdc, Color foreground) {
+        SwingUtilities3.paintCheckIcon(g, lh, lr, holdc, foreground);
+    }
+
+    private static void paintIcon(Graphics g, MenuItemLayoutHelper lh,
+                           MenuItemLayoutHelper.LayoutResult lr, Color holdc) {
+        SwingUtilities3.paintIcon(g, lh, lr, holdc);
+    }
+
+    private static void paintAccText(Graphics g, MenuItemLayoutHelper lh,
+                              MenuItemLayoutHelper.LayoutResult lr) {
+        SwingUtilities3.setDisabledForeground(disabledForeground);
+        SwingUtilities3.setAcceleratorSelectionForeground(
+                        acceleratorSelectionForeground);
+        SwingUtilities3.setAcceleratorForeground(acceleratorForeground);
+        SwingUtilities3.paintAccText(g, lh, lr);
+    }
+
+    private static void paintArrowIcon(Graphics g, MenuItemLayoutHelper lh,
+                                MenuItemLayoutHelper.LayoutResult lr,
+                                Color foreground) {
+        SwingUtilities3.paintArrowIcon(g, lh, lr, foreground);
+    }
+
+    protected void paintMenuItem(Graphics g, JComponent c,
+                                 Icon checkIcon, Icon arrowIcon,
+                                 Color background, Color foreground,
+                                 int defaultTextIconGap) {
+        if (WindowsMenuItemUI.isVistaPainting()) {
+            WindowsMenuItemUI.paintMenuItem(accessor, g, c, checkIcon,
+                                            arrowIcon, background, foreground,
+                                            defaultTextIconGap, menuItem,
+                                            getPropertyPrefix());
+            return;
+        }
+        super.paintMenuItem(g, c, checkIcon, arrowIcon, background,
+                foreground, defaultTextIconGap);
+    }
+
+    static void paintMenuItem(WindowsMenuItemUIAccessor accessor, Graphics g,
+                              JComponent c, Icon checkIcon, Icon arrowIcon,
+                              Color background, Color foreground,
+                              int defaultTextIconGap, JMenuItem menuItem, String prefix) {
+        // Save original graphics font and color
+        Font holdf = g.getFont();
+        Color holdc = g.getColor();
+
+        JMenuItem mi = (JMenuItem) c;
+        g.setFont(mi.getFont());
+
+        Rectangle viewRect = new Rectangle(0, 0, mi.getWidth(), mi.getHeight());
+        applyInsets(viewRect, mi.getInsets());
+
+        String acceleratorDelimiter =
+                UIManager.getString("MenuItem.acceleratorDelimiter");
+        if (acceleratorDelimiter == null) { acceleratorDelimiter = "+"; }
+        Font acceleratorFont = UIManager.getFont("MenuItem.acceleratorFont");
+        if (acceleratorFont == null) {
+            acceleratorFont = UIManager.getFont("MenuItem.font");
+        }
+
+        MenuItemLayoutHelper lh = new MenuItemLayoutHelper(mi, checkIcon,
+                arrowIcon, viewRect, defaultTextIconGap, acceleratorDelimiter,
+                mi.getComponentOrientation().isLeftToRight(), mi.getFont(),
+                acceleratorFont, MenuItemLayoutHelper.useCheckAndArrow(menuItem),
+                prefix);
+        MenuItemLayoutHelper.LayoutResult lr = lh.layoutMenuItem();
+
+        paintBackground(accessor, g, mi, background);
+        paintCheckIcon(g, lh, lr, holdc, foreground);
+        paintIcon(g, lh, lr, holdc);
+
+        if (lh.getCheckIcon() != null && lh.useCheckAndArrow()) {
+            Rectangle rect = lr.getTextRect();
+
+            rect.x += lh.getAfterCheckIconGap();
+
+            lr.setTextRect(rect);
+        }
+        if (!lh.getText().isEmpty()) {
+            if (lh.getHtmlView() != null) {
+                // Text is HTML
+                lh.getHtmlView().paint(g, lr.getTextRect());
+            } else {
+                // Text isn't HTML
+                paintText(accessor, g, lh.getMenuItem(),
+                          lr.getTextRect(), lh.getText());
+            }
+        }
+        if (lh.getCheckIcon() != null && lh.useCheckAndArrow()) {
+            Rectangle rect = lr.getAccRect();
+            rect.x += lh.getAfterCheckIconGap();
+            lr.setAccRect(rect);
+        }
+        paintAccText(g, lh, lr);
+        paintArrowIcon(g, lh, lr, foreground);
+
+        // Restore original graphics font and color
+        g.setColor(holdc);
+        g.setFont(holdf);
     }
 
     /**
