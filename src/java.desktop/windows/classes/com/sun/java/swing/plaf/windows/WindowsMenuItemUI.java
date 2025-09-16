@@ -89,48 +89,6 @@ public class WindowsMenuItemUI extends BasicMenuItemUI {
         return new WindowsMenuItemUI();
     }
 
-    private void updateCheckIcon() {
-        String prefix = getPropertyPrefix();
-
-        if (checkIcon == null ||
-                checkIcon instanceof UIResource) {
-            checkIcon = UIManager.getIcon(prefix + ".checkIcon");
-            //In case of column layout, .checkIconFactory is defined for this UI,
-            //the icon is compatible with it and useCheckAndArrow() is true,
-            //then the icon is handled by the checkIcon.
-            boolean isColumnLayout = MenuItemLayoutHelper.isColumnLayout(
-                    menuItem.getComponentOrientation().isLeftToRight(), menuItem);
-            if (isColumnLayout) {
-                MenuItemCheckIconFactory iconFactory =
-                        (MenuItemCheckIconFactory) UIManager.get(prefix
-                                + ".checkIconFactory");
-                if (iconFactory != null
-                        && MenuItemLayoutHelper.useCheckAndArrow(menuItem)
-                        && iconFactory.isCompatible(checkIcon, prefix)) {
-                    checkIcon = iconFactory.getIcon(menuItem);
-                }
-            }
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void installListeners() {
-        super.installListeners();
-        changeListener = new PropertyChangeListener() {
-            @Override
-            public void propertyChange(PropertyChangeEvent e) {
-                String name = e.getPropertyName();
-                if (name == "horizontalTextPosition") {
-                    updateCheckIcon();
-                }
-            }
-        };
-        menuItem.addPropertyChangeListener(changeListener);
-    }
-
     protected void installDefaults() {
         super.installDefaults();
         String prefix = getPropertyPrefix();
@@ -152,17 +110,6 @@ public class WindowsMenuItemUI extends BasicMenuItemUI {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void uninstallListeners() {
-        super.uninstallListeners();
-        if (changeListener != null) {
-            menuItem.removePropertyChangeListener(changeListener);
-        }
-        changeListener = null;
-    }
 
     private static void applyInsets(Rectangle rect, Insets insets) {
         SwingUtilities3.applyInsets(rect, insets);
