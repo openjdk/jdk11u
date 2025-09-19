@@ -25,47 +25,32 @@
 
 package com.sun.java.swing.plaf.windows;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Insets;
-import java.awt.Rectangle;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.util.Enumeration;
+import java.awt.*;
+import javax.swing.*;
+import javax.swing.plaf.*;
+import javax.swing.plaf.basic.*;
 
-import javax.swing.AbstractButton;
-import javax.swing.ButtonGroup;
-import javax.swing.ButtonModel;
-import javax.swing.DefaultButtonModel;
-import javax.swing.Icon;
-import javax.swing.JComponent;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.UIManager;
-import javax.swing.plaf.ComponentUI;
-import javax.swing.plaf.UIResource;
-import javax.swing.plaf.basic.BasicMenuItemUI;
-
-import com.sun.java.swing.SwingUtilities3;
-import com.sun.java.swing.plaf.windows.TMSchema.Part;
-import com.sun.java.swing.plaf.windows.TMSchema.State;
-import com.sun.java.swing.plaf.windows.XPStyle.Skin;
-import sun.swing.MenuItemCheckIconFactory;
-import sun.swing.MenuItemLayoutHelper;
 import sun.swing.SwingUtilities2;
+import sun.swing.MenuItemLayoutHelper;
+
+import com.sun.java.swing.plaf.windows.TMSchema.*;
+import com.sun.java.swing.plaf.windows.XPStyle.*;
+import com.sun.java.swing.SwingUtilities3;
 
 /**
  * Windows rendition of the component.
+ * <p>
+ * <strong>Warning:</strong>
+ * Serialized objects of this class will not be compatible with
+ * future Swing releases.  The current serialization support is appropriate
+ * for short term storage or RMI between applications running the same
+ * version of Swing.  A future release of Swing will provide support for
+ * long term persistence.
  *
  * @author Igor Kushnirskiy
  */
 public class WindowsMenuItemUI extends BasicMenuItemUI {
-    /**
-     * The instance of {@code PropertyChangeListener}.
-     */
-    private PropertyChangeListener changeListener;
+
     private static Color disabledForeground;
     private static Color acceleratorSelectionForeground;
     private static Color acceleratorForeground;
