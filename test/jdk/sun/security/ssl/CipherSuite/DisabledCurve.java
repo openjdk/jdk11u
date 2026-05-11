@@ -98,8 +98,8 @@ public class DisabledCurve extends SSLSocketTemplate {
         }
         System.setProperty("jdk.sunec.disableNative", "false");
 
-        // Re-enable TLSv1 and TLSv1.1 since test depends on it.
-        SecurityUtils.removeFromDisabledTlsAlgs("TLSv1", "TLSv1.1");
+        // Re-enable TLSv1, TLSv1.1, and ecdsa_sha1 since test depends on it.
+        SecurityUtils.removeFromDisabledTlsAlgs("TLSv1", "TLSv1.1", "ecdsa_sha1");
 
         for (index = 0; index < protocols.length; index++) {
             try {
