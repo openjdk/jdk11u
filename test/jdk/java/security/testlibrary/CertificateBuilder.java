@@ -35,6 +35,8 @@ import java.time.Instant;
 import javax.security.auth.x500.X500Principal;
 import java.math.BigInteger;
 
+import jdk.test.lib.Utils;
+
 import sun.security.util.DerOutputStream;
 import sun.security.util.DerValue;
 import sun.security.util.ObjectIdentifier;
@@ -138,7 +140,7 @@ public class CertificateBuilder {
         CertificateBuilder builder = new CertificateBuilder()
                 .setSubjectName(subjectName)
                 .setPublicKey(publicKey)
-                .setSerialNumber(BigInteger.valueOf(random.nextLong(1000000)+1))
+                .setSerialNumber(BigInteger.valueOf(Utils.nextLong(random, 1000000)+1))
                 .addSubjectKeyIdExt(publicKey)
                 .addAuthorityKeyIdExt(caKey);
         if (keyUsages.length != 0) {

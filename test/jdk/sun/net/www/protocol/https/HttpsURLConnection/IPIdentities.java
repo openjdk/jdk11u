@@ -50,6 +50,7 @@ import java.security.cert.X509Certificate;
 
 import java.security.cert.Certificate;
 import java.math.BigInteger;
+import jdk.test.lib.Utils;
 import jdk.test.lib.net.URIBuilder;
 import sun.security.testlibrary.CertificateBuilder;
 import sun.security.testlibrary.CertificateBuilder.KeyUsage;
@@ -232,7 +233,7 @@ public class IPIdentities {
         GeneralName name = new GeneralName(new X500Name(
                 "O=Some-Org, L=Some-City, ST=Some-State, C=US"));
         gns.add(name);
-        BigInteger serialNumber = BigInteger.valueOf(random.nextLong(1000000)+1);
+        BigInteger serialNumber = BigInteger.valueOf(Utils.nextLong(random, 1000000)+1);
         return CertificateBuilder.newCertificateBuilder(
                 "O=Some-Org, L=Some-City, ST=Some-State, C=US",
                 caKeys.getPublic(), caKeys.getPublic())
