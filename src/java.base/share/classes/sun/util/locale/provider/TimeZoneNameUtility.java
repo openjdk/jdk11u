@@ -174,10 +174,8 @@ public final class TimeZoneNameUtility {
     }
 
     /**
-     * Returns the explicit metazone DST offset for the specified time zone ID, if it exists.
-     *
+     * {@return the explicit metazone DST offset for the specified time zone ID, if exists}
      * @param tzid the time zone ID
-     * @return the explicit metazone DST offset, or null if one does not exist
      */
     public static String explicitDstOffset(String tzid) {
         LocaleProviderAdapter adapter = LocaleProviderAdapter.forType(CLDR);

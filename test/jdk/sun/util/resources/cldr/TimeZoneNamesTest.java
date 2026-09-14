@@ -23,7 +23,7 @@
 
  /*
  * @test
- * @bug 8181157 8202537 8234347 8236548  8261279 8293834
+ * @bug 8181157 8202537 8234347 8236548 8261279 8293834
  *      8381379 8390388
  * @modules jdk.localedata
  * @summary Checks CLDR time zone names are generated correctly at runtime
@@ -211,7 +211,6 @@ public class TimeZoneNamesTest {
             Arguments.of(ZonedDateTime.of(2026, 12, 5, 0, 0, 0, 0, ZoneId.of("America/Vancouver")), "Pacific Daylight Time")
         );
     }
-
 
     @ParameterizedTest
     @MethodSource("data")
