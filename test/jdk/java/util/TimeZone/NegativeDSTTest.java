@@ -73,7 +73,8 @@ public class NegativeDSTTest {
             {WINDHOEK, LocalDate.of(1994, 3, 23), ONE_HOUR, false},
             {WINDHOEK, LocalDate.of(2016, 9, 23), 2 * ONE_HOUR, true},
 
-            // Africa/Casablanca for the Rule "Morocco" Defines negative DST till 2037 as of 2019a.
+            // Africa/Casablanca for the Rule "Morocco" defines negative DST until early 2026,
+            // then returns to standard UTC permanently later that year, starting with 2026c.
             {CASABLANCA, LocalDate.of(1939, 9, 13), ONE_HOUR, true},
             {CASABLANCA, LocalDate.of(1939, 11, 20), 0, false},
             {CASABLANCA, LocalDate.of(2018, 6, 18), ONE_HOUR, true},

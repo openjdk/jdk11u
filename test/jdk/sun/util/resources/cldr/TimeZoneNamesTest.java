@@ -23,7 +23,7 @@
 
  /*
  * @test
- * @bug 8181157 8202537 8234347 8236548  8261279 8293834
+ * @bug 8181157 8202537 8234347 8236548 8261279 8293834
  *      8381379 8390388 8390380
  * @modules jdk.localedata
  * @summary Checks CLDR time zone names are generated correctly at runtime
@@ -215,7 +215,6 @@ public class TimeZoneNamesTest {
             Arguments.of(ZonedDateTime.of(2026, 7, 5, 0, 0, 0, 0, ZoneId.of("America/Yellowknife")), "Mountain Daylight Time")
         );
     }
-
 
     @ParameterizedTest
     @MethodSource("data")
