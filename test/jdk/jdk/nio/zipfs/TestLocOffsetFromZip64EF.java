@@ -27,8 +27,9 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.spi.FileSystemProvider;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
@@ -93,33 +94,13 @@ public class TestLocOffsetFromZip64EF {
     }
 
     /**
-     * Equivalent to Filesystems.newFileSystem(Path, Map<String,?>) in JDK17+
-     */
-    private final static FileSystem newFileSystem(Path path, Map<String,?> env)
-        throws IOException
-    {
-        if (path == null)
-            throw new NullPointerException();
-        // check installed providers
-        for (FileSystemProvider provider: FileSystemProvider.installedProviders()) {
-            try {
-                return provider.newFileSystem(path, env);
-            } catch (UnsupportedOperationException uoe) {
-            }
-        }
-
-        throw new ProviderNotFoundException("Provider not found");
-    }
-
-
-    /**
      * Navigate through the Zip file entries using Zip FS
      * @throws IOException if an error occurs
      */
     @Test
-    public void walkZipFSTest() throws IOException {
+    public void walkZipFSTest() throws IOException, URISyntaxException {
         try (FileSystem fs =
-                     newFileSystem(Paths.get(ZIP_FILE_NAME), Map.of("zipinfo-time", "False"))) {
+                     FileSystems.newFileSystem(new URI("jar:" + Paths.get(ZIP_FILE_NAME).toUri()), Map.of("zipinfo-time", "False"))) {
             for (Path root : fs.getRootDirectories()) {
                 Files.walkFileTree(root, new SimpleFileVisitor<>() {
                     @Override

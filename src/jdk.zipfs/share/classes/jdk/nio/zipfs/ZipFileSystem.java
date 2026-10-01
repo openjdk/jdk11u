@@ -2734,6 +2734,7 @@ class ZipFileSystem extends FileSystem {
                 }
                 if ((flag & 0x4) != 0 && locPos <= end) {
                     ctime = unixToJavaTime(LG(buf, locPos));
+                    locPos += 4;
                 }
                 break;
             }
