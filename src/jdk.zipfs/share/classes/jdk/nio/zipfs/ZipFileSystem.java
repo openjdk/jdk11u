@@ -1874,7 +1874,9 @@ class ZipFileSystem extends FileSystem {
             ByteBuffer bb = ByteBuffer.wrap(b);
             bb.position(off);
             bb.limit(off + len);
-            n = readAt(bb, pos);
+            synchronized(zfch) {
+                n = zfch.position(pos).read(bb);
+            }
             if (n > 0) {
                 pos += n;
                 rem -= n;
@@ -2748,6 +2750,7 @@ class ZipFileSystem extends FileSystem {
                 }
                 if ((flag & 0x4) != 0 && locPos <= end) {
                     ctime = unixToJavaTime(LG(buf, locPos));
+                    locPos += 4;
                 }
                 break;
             }
