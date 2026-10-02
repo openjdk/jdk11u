@@ -81,7 +81,6 @@ import static jdk.nio.zipfs.ZipUtils.*;
  */
 class ZipFileSystem extends FileSystem {
     // CEN size is limited to the maximum array size in the JDK
-    // See ArraysSupport.SOFT_MAX_ARRAY_LENGTH;
     private static final int MAX_CEN_SIZE = Integer.MAX_VALUE - 8;
 
     private final ZipFileSystemProvider provider;
