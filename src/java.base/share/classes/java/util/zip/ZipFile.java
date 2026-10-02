@@ -1682,7 +1682,6 @@ class ZipFile implements ZipConstants, Closeable {
                 if (locpos < 0) {
                     zerror("invalid END header (bad central directory offset)");
                 }
-                // read in the CEN and END
                 if (end.cenlen + ENDHDR >= Integer.MAX_VALUE) {
                     zerror("invalid END header (central directory size too large)");
                 }

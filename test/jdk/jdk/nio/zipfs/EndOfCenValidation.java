@@ -63,7 +63,7 @@ public class EndOfCenValidation {
     static final Path BAD_ENTRY_COUNT_ZIP = Path.of("bad-entry-count.zip");
 
     // Maximum allowed CEN size allowed by ZipFileSystem
-    static final int MAX_CEN_SIZE = Integer.MAX_VALUE - 8; // JDK-8247373 ArraysSupport.SOFT_MAX_ARRAY_LENGTH;
+    static final int MAX_CEN_SIZE = Integer.MAX_VALUE - 8;
 
     /**
      * Delete big files after test, in case the file system did not support sparse files.
