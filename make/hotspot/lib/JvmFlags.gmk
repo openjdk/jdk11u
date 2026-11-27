@@ -90,7 +90,7 @@ JVM_CFLAGS += \
     $(JVM_CFLAGS_TARGET_DEFINES) \
     $(JVM_CFLAGS_FEATURES) \
     $(JVM_CFLAGS_INCLUDES) \
-    $(EXTRA_CFLAGS) \
+    $(EXTRA_CXXFLAGS) \
     #
 
 # -DDONT_USE_PRECOMPILED_HEADER will exclude all includes in precompiled.hpp.
